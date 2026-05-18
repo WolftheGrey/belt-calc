@@ -171,4 +171,4 @@ App
 
 ## Лицензия
 
-MIT (или какую укажет автор репозитория).
+Apache License 2.0 — см. [LICENSE](LICENSE).
