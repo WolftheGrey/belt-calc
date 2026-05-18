@@ -1,0 +1,3334 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Belt Drive Planner</title>
+<style>
+  :root {
+    --bg: #0d2847;
+    --bg-2: #0a1f38;
+    --bg-3: #061427;
+    --line: #e0f4ff;
+    --line-dim: rgba(224, 244, 255, 0.55);
+    --line-faint: rgba(150, 200, 255, 0.18);
+    --grid-major: rgba(170, 210, 255, 0.32);
+    --grid-minor: rgba(150, 200, 255, 0.13);
+    --accent: #ffd66e;
+    --accent-2: #6ec8ff;
+    --warn: #ffb84d;
+    --error: #ff6b6b;
+    --good: #6effb4;
+    --motor: #6ec8ff;
+    --belt1: #e0f4ff;
+    --belt2: #b0e6c8;
+    --dim: #ffd66e;
+    --panel-bg: rgba(10, 31, 56, 0.95);
+    --mono: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--line);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.4;
+    overflow: hidden;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    height: 100%;
+    display: grid;
+    grid-template-rows: 38px 1fr;
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar {
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--line-faint);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .toolbar .title {
+    color: var(--accent);
+    font-weight: bold;
+    letter-spacing: 1px;
+    margin-right: 16px;
+  }
+
+  .toolbar button {
+    background: transparent;
+    color: var(--line);
+    border: 1px solid var(--line-faint);
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.1s;
+  }
+
+  .toolbar button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .toolbar .toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--line-dim);
+    cursor: pointer;
+  }
+
+  .toolbar .toggle input { cursor: pointer; }
+
+  .toolbar .spacer { flex: 1; }
+
+  .toolbar .toast {
+    color: var(--good);
+    font-size: 11px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .toolbar .toast.show { opacity: 1; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 270px 1fr 280px;
+    min-height: 0;
+  }
+
+  .panel {
+    background: var(--bg);
+    padding: 12px;
+    overflow-y: auto;
+    border-right: 1px solid var(--line-faint);
+  }
+
+  .panel.right {
+    border-right: none;
+    border-left: 1px solid var(--line-faint);
+  }
+
+  .panel h2 {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: normal;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed var(--line-faint);
+  }
+
+  .panel h3 {
+    color: var(--accent-2);
+    font-size: 11px;
+    font-weight: normal;
+    letter-spacing: 1px;
+    margin: 12px 0 6px;
+  }
+
+  .field {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  .field label {
+    color: var(--line-dim);
+    font-size: 11px;
+  }
+
+  .field input[type="number"],
+  .field input[type="text"],
+  .field select {
+    background: var(--bg-3);
+    color: var(--line);
+    border: 1px solid var(--line-faint);
+    padding: 3px 6px;
+    width: 70px;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: right;
+    border-radius: 2px;
+  }
+
+  .field select { width: auto; min-width: 88px; }
+
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+    outline: none;
+  }
+
+  .radio-row { display: flex; gap: 12px; padding: 4px 0; }
+  .radio-row label { color: var(--line-dim); cursor: pointer; display: flex; gap: 4px; align-items: center; }
+  .radio-row input { cursor: pointer; }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    color: var(--line-dim);
+    cursor: pointer;
+  }
+  .checkbox-row input { cursor: pointer; }
+
+  .stage-block {
+    border: 1px solid var(--line-faint);
+    padding: 8px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+  }
+
+  .stage-block.stage1 { border-left: 3px solid var(--belt1); }
+  .stage-block.stage2 { border-left: 3px solid var(--belt2); }
+
+  .stage-title {
+    color: var(--accent-2);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .scene-host {
+    position: relative;
+    background: var(--bg);
+    overflow: hidden;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .scene-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    cursor: default;
+  }
+
+  .scene-svg.dragging { cursor: grabbing; }
+  .scene-svg.pan-ready { cursor: grab; }
+  .scene-svg.panning { cursor: grabbing; }
+
+  .result-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: 2px 0;
+    color: var(--line-dim);
+    font-size: 11px;
+  }
+
+  .result-row .value { color: var(--line); font-weight: bold; }
+  .result-row .value.warn { color: var(--warn); }
+  .result-row .value.error { color: var(--error); }
+  .result-row .value.good { color: var(--good); }
+  .result-row .value.dim { color: var(--line-dim); }
+
+  .result-row .label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    margin-left: 6px;
+  }
+  .badge.warn { background: rgba(255, 184, 77, 0.18); color: var(--warn); }
+  .badge.error { background: rgba(255, 107, 107, 0.18); color: var(--error); }
+
+  .help {
+    color: var(--line-dim);
+    font-size: 10px;
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .key-hint {
+    background: var(--bg-3);
+    color: var(--line-dim);
+    border: 1px solid var(--line-faint);
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-size: 10px;
+  }
+
+  .zoom-ctl {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: var(--bg-2);
+    border: 1px solid var(--line-faint);
+    border-radius: 3px;
+    padding: 4px;
+    z-index: 2;
+  }
+  .zoom-ctl button {
+    background: transparent;
+    color: var(--line);
+    border: 1px solid var(--line-faint);
+    width: 28px; height: 22px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1;
+    border-radius: 2px;
+    padding: 0;
+  }
+  .zoom-ctl button:hover { color: var(--accent); border-color: var(--accent); }
+  .zoom-ctl .zoom-label {
+    color: var(--line-dim);
+    font-size: 9px;
+    text-align: center;
+    user-select: none;
+  }
+
+  .edit-modal {
+    position: fixed;
+    background: var(--bg-2);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    padding: 8px 10px;
+    z-index: 50;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    min-width: 170px;
+  }
+  .edit-modal h4 {
+    color: var(--accent);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    font-weight: normal;
+  }
+  .edit-modal .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    align-items: center;
+    padding: 2px 0;
+  }
+  .edit-modal .row label { color: var(--line-dim); font-size: 11px; }
+  .edit-modal input[type="number"] {
+    background: var(--bg-3);
+    color: var(--line);
+    border: 1px solid var(--line-faint);
+    padding: 3px 6px;
+    width: 80px;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: right;
+    border-radius: 2px;
+  }
+  .edit-modal input:focus { outline: none; border-color: var(--accent); }
+  .edit-modal .actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .edit-modal button {
+    background: transparent;
+    color: var(--line);
+    border: 1px solid var(--line-faint);
+    padding: 3px 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .edit-modal button:hover { color: var(--accent); border-color: var(--accent); }
+  .edit-modal button.primary { color: var(--accent); border-color: var(--accent); }
+  .edit-modal button:disabled,
+  .edit-modal button:disabled:hover {
+    color: var(--line-dim);
+    border-color: var(--line-faint);
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  .edit-modal input:disabled {
+    color: var(--line-dim);
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  .edit-modal .hint { color: var(--line-dim); font-size: 10px; margin-top: 4px; }
+
+  /* Scrollbars */
+  .panel::-webkit-scrollbar { width: 6px; }
+  .panel::-webkit-scrollbar-track { background: var(--bg-2); }
+  .panel::-webkit-scrollbar-thumb { background: var(--line-faint); border-radius: 3px; }
+  .panel::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+/* ============================================================================
+ * BELT DRIVE PLANNER
+ *
+ * Single-file 2D calculator for belt-drive layouts (1- or 2-stage), aimed at
+ * designing motorized pan/tilt heads and similar small geared belt drives.
+ * All state lives in URL + localStorage; no backend, no build step.
+ *
+ * File structure (top to bottom):
+ *   1. CONSTANTS              — belt profiles, defaults, scene size
+ *   2. GEOMETRY HELPERS       — diameters, length, wrap angle, distances
+ *   3. TANGENT CALCULATIONS   — external + internal common tangents
+ *   4. BELT PATH BUILDERS     — buildBelt (convex hull, N circles)
+ *                             — buildBeltInverted (EXT tensioner case)
+ *   5. SVG PATH SERIALIZATION — beltToSvgPath
+ *   6. URL STATE              — encodeState / decodeState / mergeDefaults
+ *   7. CALCULATIONS           — computeAll → per-stage info + totals
+ *   8. PNG EXPORT             — exportPng + drawExportTable
+ *   9. TENSIONER POSITIONING  — tensionerPosForSide (spawn + mode jump)
+ *  10. LOCK ENFORCER          — applyLockForStage + enforceLocks
+ *  11. REACT COMPONENTS       — App, panels, scene layers, modals
+ *  12. MOUNT
+ *
+ * Key invariants:
+ *   • Pulleys are rendered at OUTER diameter (pitch + 1 mm); belt arcs are
+ *     rendered at PITCH diameter. The belt sits visually inside the pulley
+ *     ring → physically correct (teeth engage at pitch) AND visually
+ *     distinct from the pulley outline.
+ *   • All geometry uses SVG coordinates (Y-down). atan2/cos/sin follow the
+ *     same coordinate system; "CCW in math sense" = "CW visually" in SVG.
+ *     SVG arc sweep flag is set accordingly per arc direction.
+ *   • Belt builders never return null for non-degenerate inputs. If a
+ *     specific tangent fails, a degenerate fallback (line through circle
+ *     perimeters along the center vector) is substituted to keep the belt
+ *     visually present rather than vanishing mid-drag.
+ *   • Numerical stability:
+ *       - acos arguments clamped to [-1, 1] (rounding can drift slightly out)
+ *       - pickDir uses cross-product tiebreaker for the symmetric 2-circle
+ *         case where centroid distances of both candidate midpoints are
+ *         mathematically equal
+ *   • The tensioner is part of the belt geometry over the FULL drag range,
+ *     not just when its perimeter physically touches the natural 2-pulley
+ *     belt. Auto-detach happens only in the degenerate collinear case
+ *     (tensioner on the centerline → convex hull collapses to 2 vertices).
+ *
+ * React rendering uses htm (no Babel) — JSX-like syntax via tagged template
+ * literals: html`<Component prop=${value} />`.
+ * ============================================================================ */
+
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'https://esm.sh/react@18';
+import { createRoot } from 'https://esm.sh/react-dom@18/client';
+import htm from 'https://esm.sh/htm@3';
+
+const html = htm.bind(React.createElement);
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+const BELT_PROFILES = {
+  'GT2-2M': {
+    pitch: 2,
+    standardLengths: [110, 122, 158, 200, 220, 280, 300, 400, 470, 510, 540, 600, 610, 760, 852, 950, 1220, 1524, 2000],
+  },
+  'GT3-2M': {
+    pitch: 2,
+    standardLengths: [110, 122, 158, 200, 220, 280, 300, 400, 470, 510, 540, 600, 610, 760, 852, 950, 1220, 1524, 2000],
+  },
+  'HTD-3M': {
+    pitch: 3,
+    standardLengths: [144, 174, 186, 201, 213, 222, 264, 288, 300, 339, 357, 384, 420, 462, 489, 528, 588, 633, 660, 711, 738, 753, 798, 813, 837, 891, 999, 1014, 1095, 1224, 1257, 1281],
+  },
+  'HTD-5M': {
+    pitch: 5,
+    standardLengths: [250, 300, 350, 400, 425, 450, 500, 525, 550, 600, 635, 700, 750, 800, 850, 900, 950, 1000, 1100, 1200, 1500, 1700, 2000],
+  },
+};
+
+const MICROSTEPS = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+
+const DEFAULT_STATE = {
+  stages: 1,
+  beltProfile: 'GT2-2M',
+  motor:        { x: 0,   y: 0 },
+  intermediate: { x: 80,  y: -100 },
+  output:       { x: 80,  y: 0 },
+  stage1: {
+    drivingTeeth: 20,
+    drivenTeeth:  80,
+    tensioner: null,
+    tensionerDiameter: 16,
+    tensionerSide: 'auto', // 'auto' (convex hull) or 'inverted' (belt back-side wraps tensioner)
+    lockL: null,           // when set: belt length is fixed; driven shaft is recomputed on every change
+  },
+  stage2: {
+    drivingTeeth: 20,
+    drivenTeeth:  60,
+    tensioner: null,
+    tensionerDiameter: 16,
+    tensionerSide: 'auto',
+    lockL: null,
+  },
+  stepsPerRev: 200,
+  microstep: 16,
+  snapToGrid: false,
+  shaftDiameter: 5,
+};
+
+// Scene world: motor at (0,0). World extends in both + and − for X/Y.
+const SCENE_HALF_W = 200; // mm — visible half-width
+const SCENE_HALF_H = 150; // mm — visible half-height
+const SCENE_W = SCENE_HALF_W * 2;
+const SCENE_H = SCENE_HALF_H * 2;
+const GRID_MINOR = 10; // mm
+const GRID_MAJOR = 50; // mm
+const RULER_PAD = 18; // mm — area for ruler labels
+const SNAP_STEP = 5; // mm — grid snap step when enabled
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 6;
+const ZOOM_STEP = 1.0625; // ~4× slower per event than 1.25
+
+// Default viewBox: origin centered, with padding for rulers on each side.
+function defaultViewBox() {
+  return {
+    x: -SCENE_HALF_W - RULER_PAD,
+    y: -SCENE_HALF_H - RULER_PAD,
+    w: SCENE_W + RULER_PAD * 2,
+    h: SCENE_H + RULER_PAD * 2,
+  };
+}
+
+// ============================================================
+// GEOMETRY HELPERS
+// ============================================================
+
+const TAU = Math.PI * 2;
+const RAD2DEG = 180 / Math.PI;
+
+function pitchDiameter(teeth, pitch) {
+  return teeth * pitch / Math.PI;
+}
+
+function outerDiameter(teeth, pitch) {
+  return pitchDiameter(teeth, pitch) + 1;
+}
+
+// Open-belt formula
+function openBeltLength(C, D1, D2) {
+  if (C <= 0) return 0;
+  return 2 * C + Math.PI * (D1 + D2) / 2 + Math.pow(D2 - D1, 2) / (4 * C);
+}
+
+// Wrap angle on smaller pulley (degrees)
+function wrapAngleSmall(C, D1, D2) {
+  const big = Math.max(D1, D2), small = Math.min(D1, D2);
+  if (C <= (big - small) / 2) return 0;
+  const arg = (big - small) / (2 * C);
+  if (arg > 1) return 0;
+  return 180 - 2 * Math.asin(arg) * RAD2DEG;
+}
+
+function teethInMesh(wrapDeg, teeth) {
+  return Math.floor((wrapDeg / 360) * teeth);
+}
+
+function nearestStandard(L, list) {
+  let best = list[0], minDelta = Math.abs(L - list[0]);
+  for (const std of list) {
+    const delta = Math.abs(L - std);
+    if (delta < minDelta) { best = std; minDelta = delta; }
+  }
+  return { length: best, delta: L - best };
+}
+
+function dist(a, b) {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+// ============================================================
+// BELT PATH (around N circles, convex-hull ordering)
+// ============================================================
+
+// External tangent angles between two circles. Returns the two
+// shared-direction angles (measured from each circle center)
+// where the radii are perpendicular to the tangent line.
+function externalTangentAngles(c1, r1, c2, r2) {
+  const dx = c2.x - c1.x, dy = c2.y - c1.y;
+  const d = Math.hypot(dx, dy);
+  if (d <= Math.abs(r2 - r1) + 1e-6) return null;
+  const alpha = Math.atan2(dy, dx);
+  // Clamp arg to [-1, 1] — float rounding can push (r1-r2)/d slightly outside
+  // even when d is comfortably > |r1-r2|, producing NaN angles → invisible
+  // belt segments / flickering during drag.
+  const arg = Math.max(-1, Math.min(1, (r1 - r2) / d));
+  const phi = Math.acos(arg);
+  return [alpha + phi, alpha - phi];
+}
+
+// Convex-hull ordering of circles by atan2 around centroid.
+// In SVG coordinates (Y-down), atan2(dy, dx) sorts CCW in the
+// standard math sense but CW visually — both interpretations
+// give a consistent hull traversal.
+function hullOrdered(circles) {
+  if (circles.length <= 2) return [...circles];
+  const cx = circles.reduce((s, c) => s + c.x, 0) / circles.length;
+  const cy = circles.reduce((s, c) => s + c.y, 0) / circles.length;
+  return [...circles].sort((a, b) =>
+    Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx)
+  );
+}
+
+// For two consecutive circles in the hull, pick the tangent on the side
+// AWAY from the hull interior. Hybrid criterion:
+//   1. Primary: midpoint distance from centroid (works for 3+ hulls; the
+//      "outer" tangent's midpoint sits farther from centroid).
+//   2. Tiebreaker: signed cross product (c2-c1) × (mid-c1). The 2-circle
+//      case has perfectly symmetric midpoints (equidistant from centroid),
+//      so distance alone is float-fragile — the cross sign is the only
+//      deterministic discriminator, and it guarantees c1→c2 and c2→c1 land
+//      on OPPOSITE physical sides (the top + bottom of the belt loop).
+function outerTangent(c1, r1, c2, r2, interior) {
+  const angles = externalTangentAngles(c1, r1, c2, r2);
+  if (!angles) return null;
+  const dx = c2.x - c1.x, dy = c2.y - c1.y;
+  const cands = angles.map((a) => {
+    const t1 = { x: c1.x + r1 * Math.cos(a), y: c1.y + r1 * Math.sin(a) };
+    const t2 = { x: c2.x + r2 * Math.cos(a), y: c2.y + r2 * Math.sin(a) };
+    const midX = (t1.x + t2.x) / 2, midY = (t1.y + t2.y) / 2;
+    const dist = Math.hypot(midX - interior.x, midY - interior.y);
+    const cross = dx * (midY - c1.y) - dy * (midX - c1.x);
+    return { t1, t2, angle: a, dist, cross };
+  });
+  cands.sort((p, q) => {
+    if (Math.abs(p.dist - q.dist) > 1e-6) return q.dist - p.dist; // farther first
+    return q.cross - p.cross;                                       // tiebreaker
+  });
+  return cands[0];
+}
+
+// Build the belt as a sequence of straight tangents + arcs.
+// circles: array of { x, y, r } in any order; will be hull-ordered.
+function buildBelt(circles) {
+  if (circles.length < 2) return null;
+  const hull = hullOrdered(circles);
+  const cx = hull.reduce((s, c) => s + c.x, 0) / hull.length;
+  const cy = hull.reduce((s, c) => s + c.y, 0) / hull.length;
+  const interior = { x: cx, y: cy };
+
+  const N = hull.length;
+  const tangents = [];
+  for (let i = 0; i < N; i++) {
+    const a = hull[i], b = hull[(i + 1) % N];
+    let tan = outerTangent(a, a.r, b, b.r, interior);
+    if (!tan) {
+      // Fallback degenerate tangent: line between circle perimeters along
+      // the centerline. Geometry is wrong (this isn't a real tangent), but
+      // we'd rather render something visibly wrong than make the whole
+      // belt disappear when pulleys momentarily overlap during a drag.
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const ux = dx / d, uy = dy / d;
+      tan = {
+        t1: { x: a.x + ux * a.r, y: a.y + uy * a.r },
+        t2: { x: b.x - ux * b.r, y: b.y - uy * b.r },
+        angle: Math.atan2(uy, ux),
+        degenerate: true,
+      };
+    }
+    tangents.push(tan);
+  }
+
+  // For each circle: wrap arc from previous tangent's t2 to next tangent's t1.
+  let totalLen = 0;
+  const arcs = [];
+  for (let i = 0; i < N; i++) {
+    const c = hull[i];
+    const prev = tangents[(i - 1 + N) % N]; // ends ON this circle (its t2 touches c)
+    const next = tangents[i]; // starts FROM this circle (its t1 touches c)
+
+    const angleIn  = Math.atan2(prev.t2.y - c.y, prev.t2.x - c.x);
+    const angleOut = Math.atan2(next.t1.y - c.y, next.t1.x - c.x);
+
+    // Belt traverses circle going AWAY from interior. Both directions
+    // are valid arcs; pick the one whose midpoint is on the outer side.
+    let wrapCCW = (angleOut - angleIn + TAU) % TAU; // arc in +ang direction
+    let wrapCW  = TAU - wrapCCW;
+
+    const midAng = (dir) => (dir > 0)
+      ? (angleIn + wrapCCW / 2)
+      : (angleIn - wrapCW / 2);
+
+    const mCCW = { x: c.x + c.r * Math.cos(midAng(1)), y: c.y + c.r * Math.sin(midAng(1)) };
+    const mCW  = { x: c.x + c.r * Math.cos(midAng(-1)), y: c.y + c.r * Math.sin(midAng(-1)) };
+
+    const pickDir = () => {
+      // 3+ circles: pick the side on the same half-plane as C relative to
+      // line(prevHull, nextHull) — the geometric "outside" at this vertex.
+      if (N >= 3) {
+        const prevC = hull[(i - 1 + N) % N];
+        const nextC = hull[(i + 1) % N];
+        const lx = nextC.x - prevC.x, ly = nextC.y - prevC.y;
+        const sideOf = (px, py) =>
+          Math.sign(lx * (py - prevC.y) - ly * (px - prevC.x));
+        const cSide = sideOf(c.x, c.y);
+        if (cSide !== 0) {
+          const sCCW = sideOf(mCCW.x, mCCW.y);
+          const sCW  = sideOf(mCW.x,  mCW.y);
+          if (sCCW === cSide && sCW !== cSide) return 1;
+          if (sCW  === cSide && sCCW !== cSide) return -1;
+        }
+      }
+      // 2-circle case: pick the side FURTHER from the OTHER circle along
+      // the centerline axis. Both midpoints are exactly equidistant from
+      // the centroid by symmetry, so distance comparison is unstable —
+      // float noise was flipping `dir` between renders and causing the
+      // belt to flicker / lose arcs at certain drag positions.
+      if (N === 2) {
+        const other = hull[(i + 1) % N];
+        const dx = other.x - c.x, dy = other.y - c.y;
+        const dotCCW = (mCCW.x - c.x) * dx + (mCCW.y - c.y) * dy;
+        const dotCW  = (mCW.x  - c.x) * dx + (mCW.y  - c.y) * dy;
+        // Want the midpoint AWAY from `other` → more negative dot.
+        return dotCCW < dotCW ? 1 : -1;
+      }
+      // Fallback: farther from interior centroid.
+      const dCCW = Math.hypot(mCCW.x - interior.x, mCCW.y - interior.y);
+      const dCW  = Math.hypot(mCW.x  - interior.x, mCW.y  - interior.y);
+      return dCCW >= dCW ? 1 : -1;
+    };
+    const dir = pickDir();
+    const wrap = dir > 0 ? wrapCCW : wrapCW;
+    totalLen += c.r * wrap;
+    arcs.push({ center: c, radius: c.r, angleIn, angleOut, wrap, dir });
+  }
+
+  for (const t of tangents) {
+    totalLen += Math.hypot(t.t2.x - t.t1.x, t.t2.y - t.t1.y);
+  }
+
+  return { hull, tangents, arcs, length: totalLen, interior };
+}
+
+// Internal common tangent angles (for circles wrapping in opposite directions).
+// Returns 2 angles on c1; tangent point on c1 = c1 + r1*(cos θ, sin θ),
+// on c2 = c2 - r2*(cos θ, sin θ) (opposite normal).
+function internalTangentAngles(c1, r1, c2, r2) {
+  const dx = c2.x - c1.x, dy = c2.y - c1.y;
+  const d = Math.hypot(dx, dy);
+  if (d <= r1 + r2 + 1e-6) return null;
+  const alpha = Math.atan2(dy, dx);
+  const arg = Math.max(-1, Math.min(1, (r1 + r2) / d));
+  const phi = Math.acos(arg);
+  return [alpha + phi, alpha - phi];
+}
+
+// Distance from point p to a finite line segment [a, b].
+function distPointToSegment(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1e-9) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+// Minimum distance from point p to belt boundary (tangent segments + wrap
+// arc surfaces). Used to decide whether a tensioner actually touches belt.
+function minDistFromPointToBelt(p, belt) {
+  if (!belt || !belt.tangents) return Infinity;
+  let m = Infinity;
+  for (const t of belt.tangents) {
+    m = Math.min(m, distPointToSegment(p, t.t1, t.t2));
+  }
+  for (const arc of belt.arcs || []) {
+    const dx = p.x - arc.center.x, dy = p.y - arc.center.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 1e-9) { m = Math.min(m, arc.radius); continue; }
+    const angle = Math.atan2(dy, dx);
+    // Is `angle` inside the wrap interval [angleIn, angleIn ± wrap]?
+    const offset = arc.dir > 0
+      ? (angle - arc.angleIn + TAU * 2) % TAU
+      : (arc.angleIn - angle + TAU * 2) % TAU;
+    if (offset <= arc.wrap) {
+      m = Math.min(m, Math.abs(d - arc.radius));
+    }
+  }
+  return m;
+}
+
+// Inverted-tensioner belt: pulleys wrap in one direction, tensioner in the
+// opposite. Belt's smooth back contacts the tensioner. Belt deflects from
+// the natural straight segment toward the tensioner via internal tangents.
+function buildBeltInverted(p1, p2, t) {
+  if (!p1 || !p2 || !t) return null;
+  const dx = p2.x - p1.x, dy = p2.y - p1.y;
+  const dpp = Math.hypot(dx, dy);
+  if (dpp < 1) return null;
+  // side of tensioner relative to p1->p2 line via cross product
+  const cross = dx * (t.y - p1.y) - dy * (t.x - p1.x);
+  const side = Math.sign(cross) || 1;
+  const sideOf = (px, py) => Math.sign(dx * (py - p1.y) - dy * (px - p1.x));
+
+  // External tangent on UNAFFECTED side (opposite to tensioner)
+  const extAngles = externalTangentAngles(p1, p1.r, p2, p2.r);
+  if (!extAngles) return null;
+  let unAng = null;
+  for (const θ of extAngles) {
+    const px = p1.x + p1.r * Math.cos(θ), py = p1.y + p1.r * Math.sin(θ);
+    if (sideOf(px, py) !== side) { unAng = θ; break; }
+  }
+  if (unAng === null) return null;
+
+  // Internal tangent p1 → t (exit p1 on AFFECTED side)
+  const intP1T = internalTangentAngles(p1, p1.r, t, t.r);
+  if (!intP1T) return null;
+  let p1Exit = null, tEnter = null, p1ExitAng = null;
+  for (const θ of intP1T) {
+    const tp = { x: p1.x + p1.r * Math.cos(θ), y: p1.y + p1.r * Math.sin(θ) };
+    if (sideOf(tp.x, tp.y) === side) {
+      p1ExitAng = θ;
+      p1Exit = tp;
+      tEnter = { x: t.x - t.r * Math.cos(θ), y: t.y - t.r * Math.sin(θ) };
+      break;
+    }
+  }
+  if (!p1Exit) return null;
+
+  // Internal tangent t → p2 (enter p2 on AFFECTED side)
+  const intTP2 = internalTangentAngles(t, t.r, p2, p2.r);
+  if (!intTP2) return null;
+  let tExit = null, p2Enter = null, p2EnterAng = null;
+  for (const θ of intTP2) {
+    const tp = { x: p2.x - p2.r * Math.cos(θ), y: p2.y - p2.r * Math.sin(θ) };
+    if (sideOf(tp.x, tp.y) === side) {
+      tExit = { x: t.x + t.r * Math.cos(θ), y: t.y + t.r * Math.sin(θ) };
+      p2Enter = tp;
+      p2EnterAng = Math.atan2(tp.y - p2.y, tp.x - p2.x);
+      break;
+    }
+  }
+  if (!tExit) return null;
+
+  const unTanP1 = { x: p1.x + p1.r * Math.cos(unAng), y: p1.y + p1.r * Math.sin(unAng) };
+  const unTanP2 = { x: p2.x + p2.r * Math.cos(unAng), y: p2.y + p2.r * Math.sin(unAng) };
+
+  const tEnterAng = Math.atan2(tEnter.y - t.y, tEnter.x - t.x);
+  const tExitAng  = Math.atan2(tExit.y  - t.y, tExit.x  - t.x);
+
+  // Wrap direction depends on the chirality of this configuration. Compute
+  // both candidate wraps for each circle and pick by midpoint geometry:
+  //   • pulleys → outer side (midpoint farther from the OTHER two circles)
+  //   • tensioner (inverted) → inner side (midpoint CLOSER to the pulleys),
+  //     because the belt wraps the side of the tensioner that faces back
+  //     toward the natural belt path.
+  const pickWrap = (circle, angleIn, angleOut, others, preferInner) => {
+    const wrapCCW = (angleOut - angleIn + TAU) % TAU;
+    const wrapCW = TAU - wrapCCW;
+    const midA = (d) => d > 0 ? angleIn + wrapCCW / 2 : angleIn - wrapCW / 2;
+    const mC = (d) => ({
+      x: circle.x + circle.r * Math.cos(midA(d)),
+      y: circle.y + circle.r * Math.sin(midA(d)),
+    });
+    const mCCW = mC(1), mCW = mC(-1);
+    let cx = 0, cy = 0;
+    for (const o of others) { cx += o.x; cy += o.y; }
+    cx /= others.length; cy /= others.length;
+    const dCCW = Math.hypot(mCCW.x - cx, mCCW.y - cy);
+    const dCW = Math.hypot(mCW.x - cx, mCW.y - cy);
+    const dir = preferInner
+      ? (dCCW <= dCW ? 1 : -1)
+      : (dCCW >= dCW ? 1 : -1);
+    return { dir, wrap: dir > 0 ? wrapCCW : wrapCW };
+  };
+
+  const wp1 = pickWrap(p1, unAng,      p1ExitAng, [p2, t], false);
+  const wt  = pickWrap(t,  tEnterAng,  tExitAng,  [p1, p2], true);
+  const wp2 = pickWrap(p2, p2EnterAng, unAng,     [p1, t], false);
+
+  const tan1 = Math.hypot(tEnter.x - p1Exit.x, tEnter.y - p1Exit.y);
+  const tan2 = Math.hypot(p2Enter.x - tExit.x, p2Enter.y - tExit.y);
+  const tan3 = Math.hypot(unTanP1.x - unTanP2.x, unTanP1.y - unTanP2.y);
+  const length = p1.r * wp1.wrap + t.r * wt.wrap + p2.r * wp2.wrap + tan1 + tan2 + tan3;
+
+  const tangents = [
+    { t1: p1Exit, t2: tEnter },
+    { t1: tExit,  t2: p2Enter },
+    { t1: unTanP2, t2: unTanP1 },
+  ];
+  const arcs = [
+    { center: p1, radius: p1.r, angleIn: unAng,      angleOut: p1ExitAng, wrap: wp1.wrap, dir: wp1.dir },
+    { center: t,  radius: t.r,  angleIn: tEnterAng,  angleOut: tExitAng,  wrap: wt.wrap,  dir: wt.dir },
+    { center: p2, radius: p2.r, angleIn: p2EnterAng, angleOut: unAng,     wrap: wp2.wrap, dir: wp2.dir },
+  ];
+  return { tangents, arcs, length, hull: [p1, t, p2] };
+}
+
+// Render belt as SVG path string. Arcs use direction info from buildBelt.
+function beltToSvgPath(belt) {
+  if (!belt) return '';
+  const { tangents, arcs } = belt;
+  const N = tangents.length;
+  // Validate all coords are finite — a single NaN/Infinity makes SVG
+  // bail out mid-path and renders only part of the belt.
+  const finite = (n) => Number.isFinite(n);
+  const okTan = (t) => t && finite(t.t1.x) && finite(t.t1.y) && finite(t.t2.x) && finite(t.t2.y);
+  for (let i = 0; i < N; i++) {
+    if (!okTan(tangents[i])) return '';
+    const a = arcs[i];
+    if (!a || !finite(a.radius) || !finite(a.wrap) || a.radius <= 0) return '';
+  }
+  let d = `M ${tangents[0].t1.x.toFixed(3)} ${tangents[0].t1.y.toFixed(3)}`;
+  for (let i = 0; i < N; i++) {
+    const t = tangents[i];
+    d += ` L ${t.t2.x.toFixed(3)} ${t.t2.y.toFixed(3)}`;
+    const arc = arcs[(i + 1) % N];
+    // Clamp wrap so a near-zero arc still renders something rather than
+    // collapsing into nothing (degenerate when two tangents land at the
+    // same point on a pulley).
+    const wrap = Math.min(Math.max(arc.wrap, 1e-4), Math.PI * 2 - 1e-4);
+    const largeArc = wrap > Math.PI ? 1 : 0;
+    // dir=+1 → angle increases CCW (math, Y-up). In SVG (Y-down),
+    // increasing atan2 angle goes CW visually, which is SVG sweep=1.
+    const sweep = arc.dir > 0 ? 1 : 0;
+    const target = tangents[(i + 1) % N].t1;
+    d += ` A ${arc.radius.toFixed(3)} ${arc.radius.toFixed(3)} 0 ${largeArc} ${sweep} ${target.x.toFixed(3)} ${target.y.toFixed(3)}`;
+  }
+  d += ' Z';
+  return d;
+}
+
+// ============================================================
+// STATE: URL <-> object  (compact, base64-encoded JSON)
+// ============================================================
+
+function encodeState(state) {
+  try {
+    return btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+  } catch { return null; }
+}
+function decodeState(s) {
+  try {
+    return JSON.parse(decodeURIComponent(escape(atob(s))));
+  } catch { return null; }
+}
+
+function loadInitialState() {
+  const url = new URL(location.href);
+  const fromUrl = url.searchParams.get('s');
+  if (fromUrl) {
+    const decoded = decodeState(fromUrl);
+    if (decoded) return mergeDefaults(decoded);
+  }
+  try {
+    const raw = localStorage.getItem('beltCalc.state');
+    if (raw) return mergeDefaults(JSON.parse(raw));
+  } catch {}
+  return DEFAULT_STATE;
+}
+
+function mergeDefaults(s) {
+  return {
+    ...DEFAULT_STATE,
+    ...s,
+    motor:        { ...DEFAULT_STATE.motor, ...(s.motor||{}) },
+    intermediate: { ...DEFAULT_STATE.intermediate, ...(s.intermediate||{}) },
+    output:       { ...DEFAULT_STATE.output, ...(s.output||{}) },
+    stage1:       { ...DEFAULT_STATE.stage1, ...(s.stage1||{}),
+                    tensioner: (s.stage1 && s.stage1.tensioner) || null,
+                    tensionerSide: (s.stage1 && s.stage1.tensionerSide) || 'auto',
+                    lockL: (s.stage1 && Number.isFinite(s.stage1.lockL)) ? s.stage1.lockL : null },
+    stage2:       { ...DEFAULT_STATE.stage2, ...(s.stage2||{}),
+                    tensioner: (s.stage2 && s.stage2.tensioner) || null,
+                    tensionerSide: (s.stage2 && s.stage2.tensionerSide) || 'auto',
+                    lockL: (s.stage2 && Number.isFinite(s.stage2.lockL)) ? s.stage2.lockL : null },
+  };
+}
+
+// ============================================================
+// CALCULATIONS — pure functions from state
+// ============================================================
+
+function computeAll(state) {
+  const profile = BELT_PROFILES[state.beltProfile];
+  const pitch = profile.pitch;
+
+  const D = (teeth) => pitchDiameter(teeth, pitch);
+  const Do = (teeth) => outerDiameter(teeth, pitch);
+
+  const stageInfo = (st, shaftA, shaftB) => {
+    const D1 = D(st.drivingTeeth);
+    const D2 = D(st.drivenTeeth);
+    // Visual outer radii (pulley rings drawn at outer = pitch + 1)
+    const r1 = Do(st.drivingTeeth) / 2;
+    const r2 = Do(st.drivenTeeth) / 2;
+    // Belt rides on the pitch diameter (teeth engagement point). Drawing
+    // belt arcs at pitch radius (slightly inside the pulley outer ring)
+    // keeps them visually distinct from the pulley outline.
+    const beltR1 = D1 / 2;
+    const beltR2 = D2 / 2;
+    const C = dist(shaftA, shaftB);
+    const Lopen = openBeltLength(C, D1, D2);
+    const wrap = wrapAngleSmall(C, D1, D2);
+    const smallTeeth = Math.min(st.drivingTeeth, st.drivenTeeth);
+    const meshTeeth = teethInMesh(wrap, smallTeeth);
+    const ratio = st.drivenTeeth / st.drivingTeeth;
+
+    // Belt path circles (with optional tensioner). Inverted mode wraps the
+    // tensioner from the opposite side via internal tangents.
+    const pulleyA = { x: shaftA.x, y: shaftA.y, r: beltR1, role: 'driver' };
+    const pulleyB = { x: shaftB.x, y: shaftB.y, r: beltR2, role: 'driven' };
+    let belt;
+    let tensionerAttached = false;
+    if (st.tensioner) {
+      const tCircle = {
+        x: st.tensioner.x, y: st.tensioner.y,
+        r: st.tensionerDiameter / 2, role: 'idler',
+      };
+      // The tensioner is always part of belt geometry — it can deform the
+      // belt over its full drag range (belt length grows to wrap it; there
+      // is no physical "out of reach" limit in a calculator where length is
+      // computed, not fixed). The only exception is the DEGENERATE case
+      // where the tensioner is essentially collinear with the pulleys —
+      // then the convex hull collapses to a 2-vertex line and the
+      // tensioner gets pushed off the boundary geometrically. In that case
+      // fall back to the natural 2-pulley belt and render the idler as
+      // floating.
+      const dxL = shaftB.x - shaftA.x, dyL = shaftB.y - shaftA.y;
+      const lenL = Math.hypot(dxL, dyL);
+      let collinear = false;
+      if (lenL > 0.1) {
+        const perpX = -dyL / lenL, perpY = dxL / lenL;
+        const tPerp = Math.abs((tCircle.x - shaftA.x) * perpX + (tCircle.y - shaftA.y) * perpY);
+        collinear = tPerp < 0.5;
+      }
+      if (collinear) {
+        belt = buildBelt([pulleyA, pulleyB]);
+      } else if (st.tensionerSide === 'inverted') {
+        belt = buildBeltInverted(pulleyA, pulleyB, tCircle);
+        if (!belt) belt = buildBelt([pulleyA, pulleyB, tCircle]);
+        if (!belt) belt = buildBelt([pulleyA, pulleyB]);
+        tensionerAttached = !!belt && belt.arcs && belt.arcs.length === 3;
+      } else {
+        belt = buildBelt([pulleyA, pulleyB, tCircle]);
+        if (!belt) belt = buildBelt([pulleyA, pulleyB]);
+        tensionerAttached = !!belt && belt.arcs && belt.arcs.length === 3;
+      }
+    } else {
+      belt = buildBelt([pulleyA, pulleyB]);
+    }
+    const Lreal = belt ? belt.length : Lopen;
+
+    const ns = nearestStandard(Lreal, profile.standardLengths);
+    return {
+      D1, D2, r1, r2, C, Lopen, Lreal, wrap, meshTeeth, smallTeeth,
+      ratio, belt, nearest: ns, profile: state.beltProfile,
+      tensionerAttached, lockL: st.lockL,
+    };
+  };
+
+  let stage1Info, stage2Info;
+  if (state.stages === 1) {
+    stage1Info = stageInfo(state.stage1, state.motor, state.output);
+  } else {
+    stage1Info = stageInfo(state.stage1, state.motor, state.intermediate);
+    stage2Info = stageInfo(state.stage2, state.intermediate, state.output);
+  }
+
+  // Total reduction
+  const totalReduction = state.stages === 1
+    ? stage1Info.ratio
+    : stage1Info.ratio * stage2Info.ratio;
+
+  // Bounding box of all pulleys (+ idlers)
+  const allCircles = [];
+  const pushCircle = (c, r) => allCircles.push({ x: c.x, y: c.y, r });
+  pushCircle(state.motor, stage1Info.r1);
+  if (state.stages === 1) {
+    pushCircle(state.output, stage1Info.r2);
+  } else {
+    pushCircle(state.intermediate, Math.max(stage1Info.r2, stage2Info.r1));
+    pushCircle(state.output, stage2Info.r2);
+  }
+  if (state.stage1.tensioner) {
+    pushCircle(state.stage1.tensioner, state.stage1.tensionerDiameter / 2);
+  }
+  if (state.stages === 2 && state.stage2.tensioner) {
+    pushCircle(state.stage2.tensioner, state.stage2.tensionerDiameter / 2);
+  }
+  let xMin = Infinity, yMin = Infinity, xMax = -Infinity, yMax = -Infinity;
+  for (const c of allCircles) {
+    xMin = Math.min(xMin, c.x - c.r);
+    xMax = Math.max(xMax, c.x + c.r);
+    yMin = Math.min(yMin, c.y - c.r);
+    yMax = Math.max(yMax, c.y + c.r);
+  }
+  const bbox = { x: xMin, y: yMin, w: xMax - xMin, h: yMax - yMin };
+
+  // Angular resolution
+  // microStepsPerOutputRev = stepsPerRev * microstep * totalReduction
+  // arcsec per microstep = 360 * 3600 / microStepsPerOutputRev
+  const microStepsPerOutputRev = state.stepsPerRev * state.microstep * totalReduction;
+  const arcsecPerMicrostep = (360 * 3600) / microStepsPerOutputRev;
+
+  return {
+    stage1: stage1Info,
+    stage2: stage2Info,
+    totalReduction,
+    bbox,
+    arcsecPerMicrostep,
+    pitch,
+  };
+}
+
+// ============================================================
+// PNG EXPORT
+// ============================================================
+
+function drawExportTable(ctx, x, y, w, state, calc) {
+  const pad = 26;
+  let cy = y + pad + 6;
+  const lh = 19;
+  const font = (size, weight = '400') =>
+    `${weight} ${size}px Menlo, Monaco, Consolas, "Courier New", monospace`;
+  const COL_TITLE = '#ffd66e';
+  const COL_SECT  = '#6ec8ff';
+  const COL_LAB   = 'rgba(224, 244, 255, 0.55)';
+  const COL_VAL   = '#e0f4ff';
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+
+  ctx.font = font(18, '700');
+  ctx.fillStyle = COL_TITLE;
+  ctx.fillText('BELT DRIVE LAYOUT', x + pad, cy);
+  cy += lh * 1.4;
+
+  ctx.font = font(11);
+  ctx.fillStyle = COL_LAB;
+  const now = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ` +
+                `${p2(now.getHours())}:${p2(now.getMinutes())}`;
+  ctx.fillText(stamp, x + pad, cy);
+  cy += lh * 1.5;
+
+  const section = (title) => {
+    cy += 6;
+    ctx.font = font(11, '700');
+    ctx.fillStyle = COL_SECT;
+    ctx.fillText(title, x + pad, cy);
+    cy += lh * 0.9;
+    ctx.strokeStyle = 'rgba(150, 200, 255, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + pad, cy - 2);
+    ctx.lineTo(x + w - pad, cy - 2);
+    ctx.stroke();
+    cy += 4;
+  };
+
+  const row = (label, value, color = COL_VAL) => {
+    ctx.font = font(13);
+    ctx.fillStyle = COL_LAB;
+    ctx.textAlign = 'left';
+    ctx.fillText(label, x + pad + 12, cy);
+    ctx.fillStyle = color;
+    ctx.textAlign = 'right';
+    ctx.fillText(value, x + w - pad, cy);
+    ctx.textAlign = 'left';
+    cy += lh;
+  };
+
+  const f1 = (n) => n.toFixed(1);
+
+  section('ТОПОЛОГИЯ');
+  row('Профиль', state.beltProfile);
+  row('Ступеней', String(state.stages));
+
+  section('ОСИ');
+  row('Motor', `${f1(state.motor.x)}, ${f1(state.motor.y)}`);
+  if (state.stages === 2) {
+    row('Intermediate', `${f1(state.intermediate.x)}, ${f1(state.intermediate.y)}`);
+  }
+  row('Output', `${f1(state.output.x)}, ${f1(state.output.y)}`);
+
+  section('ШКИВЫ');
+  row('Stage 1 driving', `T=${state.stage1.drivingTeeth} · ⌀${f1(calc.stage1.D1)}`);
+  row('Stage 1 driven',  `T=${state.stage1.drivenTeeth} · ⌀${f1(calc.stage1.D2)}`);
+  if (state.stages === 2) {
+    row('Stage 2 driving', `T=${state.stage2.drivingTeeth} · ⌀${f1(calc.stage2.D1)}`);
+    row('Stage 2 driven',  `T=${state.stage2.drivenTeeth} · ⌀${f1(calc.stage2.D2)}`);
+  }
+
+  const hasT = state.stage1.tensioner || (state.stages === 2 && state.stage2.tensioner);
+  if (hasT) {
+    section('НАТЯЖИТЕЛИ');
+    if (state.stage1.tensioner) {
+      const t = state.stage1.tensioner;
+      const side = state.stage1.tensionerSide === 'inverted' ? 'EXT' : 'INT';
+      row('Stage 1', `${f1(t.x)}, ${f1(t.y)} · ⌀${state.stage1.tensionerDiameter} ${side}`);
+    }
+    if (state.stages === 2 && state.stage2.tensioner) {
+      const t = state.stage2.tensioner;
+      const side = state.stage2.tensionerSide === 'inverted' ? 'EXT' : 'INT';
+      row('Stage 2', `${f1(t.x)}, ${f1(t.y)} · ⌀${state.stage2.tensionerDiameter} ${side}`);
+    }
+  }
+
+  const beltSec = (idx, info) => {
+    section(state.stages === 1 ? 'РЕМЕНЬ' : `РЕМЕНЬ ${idx}`);
+    row('C (между осями)', `${f1(info.C)} mm`);
+    row('L actual', `${f1(info.Lreal)} mm`);
+    if (Number.isFinite(info.lockL)) {
+      row('L locked', `🔒 ${f1(info.lockL)} mm`);
+    } else {
+      const d = info.nearest.delta;
+      const dStr = (d >= 0 ? '+' : '') + f1(d);
+      row('L std', `${info.nearest.length} mm (Δ${dStr})`);
+    }
+    row('Wrap (small)', `${f1(info.wrap)}°`);
+    row('Mesh teeth', `${info.meshTeeth} / ${info.smallTeeth}`);
+    row('Ratio', `1:${info.ratio.toFixed(3)}`);
+  };
+  beltSec(1, calc.stage1);
+  if (state.stages === 2) beltSec(2, calc.stage2);
+
+  section('ИТОГО');
+  row('Reduction', `1:${calc.totalReduction.toFixed(3)}`);
+  row('Bounding box', `${calc.bbox.w.toFixed(0)} × ${calc.bbox.h.toFixed(0)} mm`);
+  row('Per microstep', `${calc.arcsecPerMicrostep.toFixed(2)}″`);
+  row('Per 360°', `${Math.round(state.stepsPerRev * state.microstep * calc.totalReduction)} µsteps`);
+
+  return cy;
+}
+
+async function exportPng(state, calc) {
+  const svgEl = document.querySelector('.scene-svg');
+  if (!svgEl) throw new Error('SVG not found');
+
+  const SVG_WIDTH = 1200;
+  const vb = svgEl.viewBox.baseVal;
+  const SVG_HEIGHT = Math.max(600, Math.round(SVG_WIDTH * vb.height / vb.width));
+  const TABLE_WIDTH = 460;
+
+  // Clone SVG and resolve CSS custom properties (they wouldn't resolve when
+  // the SVG is loaded as an <img>, since the image's CSS context is empty).
+  const svgClone = svgEl.cloneNode(true);
+  svgClone.setAttribute('width', SVG_WIDTH);
+  svgClone.setAttribute('height', SVG_HEIGHT);
+  svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+  const computed = getComputedStyle(document.documentElement);
+  let xml = new XMLSerializer().serializeToString(svgClone);
+  xml = xml.replace(/var\((--[a-zA-Z0-9_-]+)\)/g, (m, name) => {
+    const val = computed.getPropertyValue(name).trim();
+    return val || m;
+  });
+  const blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('SVG image load failed'));
+      i.src = url;
+    });
+
+    const TABLE_HEIGHT_EST = 820;
+    const totalH = Math.max(SVG_HEIGHT, TABLE_HEIGHT_EST);
+    const canvas = document.createElement('canvas');
+    canvas.width = SVG_WIDTH + TABLE_WIDTH;
+    canvas.height = totalH;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = computed.getPropertyValue('--bg').trim() || '#0d2847';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const svgY = Math.round((totalH - SVG_HEIGHT) / 2);
+    ctx.drawImage(img, 0, svgY, SVG_WIDTH, SVG_HEIGHT);
+
+    ctx.strokeStyle = 'rgba(150, 200, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(SVG_WIDTH + 0.5, 12);
+    ctx.lineTo(SVG_WIDTH + 0.5, totalH - 12);
+    ctx.stroke();
+
+    drawExportTable(ctx, SVG_WIDTH, 0, TABLE_WIDTH, state, calc);
+
+    await new Promise((resolve, reject) => {
+      canvas.toBlob((b) => {
+        if (!b) return reject(new Error('canvas toBlob failed'));
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(b);
+        a.download = 'belt-drive.png';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        resolve();
+      }, 'image/png');
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// ============================================================
+// TENSIONER POSITIONING
+// ============================================================
+
+// Compute a tensioner position appropriate for the given mode.
+//   INT (auto): inside the natural belt loop, close enough to the lower
+//               tangent that the convex hull deflects the belt around it.
+//   EXT (inverted): outside the natural belt loop, close enough that the
+//               belt's smooth back deflects inward to touch the tensioner.
+// If `prevPos` is provided, the perpendicular SIGN (which side of the
+// centerline) is preserved so "switch mode" just jumps across the tangent.
+function tensionerPosForSide(state, stageIdx, side, prevPos) {
+  const shaftA = stageIdx === 1 ? state.motor : state.intermediate;
+  const shaftB = stageIdx === 1
+    ? (state.stages === 1 ? state.output : state.intermediate)
+    : state.output;
+  if (!shaftA || !shaftB) return null;
+  const stConf = state[`stage${stageIdx}`];
+  const pitch = BELT_PROFILES[state.beltProfile].pitch;
+  const r1 = pitchDiameter(stConf.drivingTeeth, pitch) / 2;
+  const r2 = pitchDiameter(stConf.drivenTeeth, pitch) / 2;
+  const tR = (stConf.tensionerDiameter || 16) / 2;
+  const dx = shaftB.x - shaftA.x, dy = shaftB.y - shaftA.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const perpX = -dy / len, perpY = dx / len;
+  const mx = (shaftA.x + shaftB.x) / 2;
+  const my = (shaftA.y + shaftB.y) / 2;
+  // Default sign: visually below the centerline (positive SVG Y)
+  let sign = perpY >= 0 ? 1 : -1;
+  if (prevPos) {
+    const curPerp = (prevPos.x - mx) * perpX + (prevPos.y - my) * perpY;
+    if (Math.abs(curPerp) > 0.01) sign = Math.sign(curPerp);
+  }
+  const avgR = (r1 + r2) / 2;
+  const off = side === 'inverted'
+    ? avgR + tR * 0.5             // outside loop, halfway into the touch zone
+    : Math.max(avgR - tR * 0.5, 1); // inside loop, halfway into touch zone
+  return {
+    x: clampScene(mx + perpX * sign * off, 'x'),
+    y: clampScene(my + perpY * sign * off, 'y'),
+  };
+}
+
+// ============================================================
+// LOCK ENFORCER (when stage has lockL, driven shaft is repositioned along
+// the current anchor→shaft direction to keep belt length = lockL).
+// ============================================================
+
+function applyLockForStage(state, stageIdx, lockL) {
+  const anchor = stageIdx === 1 ? state.motor : state.intermediate;
+  const movableKey = stageIdx === 1
+    ? (state.stages === 1 ? 'output' : 'intermediate')
+    : 'output';
+  const movable = state[movableKey];
+  if (!anchor || !movable) return state;
+  const dx = movable.x - anchor.x;
+  const dy = movable.y - anchor.y;
+  const curC = Math.hypot(dx, dy);
+  if (curC < 0.5) return state;            // direction undefined
+  const dirX = dx / curC, dirY = dy / curC;
+
+  // Bisect over C ∈ [1, 800]. L grows monotonically with C for a fixed
+  // direction (tensioner edge cases may break monotonicity slightly but
+  // bisection still lands in the right neighborhood).
+  const trial = JSON.parse(JSON.stringify(state));
+  const computeL = (cand) => {
+    trial[movableKey] = { x: anchor.x + dirX * cand, y: anchor.y + dirY * cand };
+    return computeAll(trial)[`stage${stageIdx}`].Lreal;
+  };
+  let lo = 1, hi = 800, mid = curC, lAtMid = 0;
+  // Check if lockL is achievable in the range
+  const lLo = computeL(lo), lHi = computeL(hi);
+  if (lockL < lLo - 5 || lockL > lHi + 5) return state; // impossible — bail out
+  for (let i = 0; i < 26; i++) {
+    mid = (lo + hi) / 2;
+    lAtMid = computeL(mid);
+    if (lAtMid > lockL) hi = mid; else lo = mid;
+  }
+  if (Math.abs(lAtMid - lockL) > 5) return state;
+  const nx = clampScene(anchor.x + dirX * mid, 'x');
+  const ny = clampScene(anchor.y + dirY * mid, 'y');
+  if (Math.abs(nx - movable.x) < 0.05 && Math.abs(ny - movable.y) < 0.05) return state;
+  return { ...state, [movableKey]: { x: nx, y: ny } };
+}
+
+// Two-stage with both locks resolves cleanly in topological order:
+//   stage1 (motor→intermediate)  →  stage2 (intermediate→output)
+// Stage 1 updates `intermediate`, which is stage 2's anchor; running stage 2
+// afterwards picks up the new anchor and snaps `output` accordingly. The
+// reverse order would silently violate stage 2 (its anchor moves after it
+// settled). A second pass is a no-op for the well-defined case but acts as
+// a safety net if a stage 1 update happened to nudge stage 2 inputs (e.g.
+// stage 1 tensioner repositioned intermediate, which is also stage 2's
+// anchor).
+function enforceLocks(state) {
+  if (!state) return state;
+  let s = state;
+  for (let pass = 0; pass < 2; pass++) {
+    const prev = s;
+    if (s.stage1 && Number.isFinite(s.stage1.lockL)) {
+      s = applyLockForStage(s, 1, s.stage1.lockL);
+    }
+    if (s.stages === 2 && s.stage2 && Number.isFinite(s.stage2.lockL)) {
+      s = applyLockForStage(s, 2, s.stage2.lockL);
+    }
+    if (s === prev) break; // converged
+  }
+  return s;
+}
+
+// ============================================================
+// REACT COMPONENTS
+// ============================================================
+
+function App() {
+  const [state, setState] = useState(loadInitialState);
+  const [drag, setDrag] = useState(null); // { kind, beltIdx? }
+  const [toast, setToast] = useState('');
+  const [viewBox, setViewBox] = useState(defaultViewBox);
+  const [editing, setEditing] = useState(null); // { kind, beltIdx?, screenX, screenY }
+  const [distEdit, setDistEdit] = useState(null); // { stageIdx, screenX, screenY }
+  const [lengthEdit, setLengthEdit] = useState(null); // { stageIdx, screenX, screenY }
+  const [selected, setSelected] = useState(null); // { kind, beltIdx? }
+
+  // Persist to localStorage + URL on every change
+  useEffect(() => {
+    try { localStorage.setItem('beltCalc.state', JSON.stringify(state)); } catch {}
+    const encoded = encodeState(state);
+    if (encoded) {
+      const url = new URL(location.href);
+      url.searchParams.set('s', encoded);
+      history.replaceState(null, '', url.toString());
+    }
+  }, [state]);
+
+  const calc = useMemo(() => computeAll(state), [state]);
+
+  // Smooth zoom: zoomBy/zoomFit set a target viewBox and a RAF loop
+  // exponentially eases the displayed viewBox toward it. Pan uses
+  // setViewBoxImmediate which snaps both viewBox and target (cancels anim).
+  const targetVbRef = useRef(defaultViewBox());
+  const rafIdRef = useRef(null);
+  const SMOOTHING = 0.22; // per-frame easing factor (≈47ms half-life @60fps)
+
+  const tick = useCallback(() => {
+    setViewBox((curr) => {
+      const tgt = targetVbRef.current;
+      const nx = curr.x + (tgt.x - curr.x) * SMOOTHING;
+      const ny = curr.y + (tgt.y - curr.y) * SMOOTHING;
+      const nw = curr.w + (tgt.w - curr.w) * SMOOTHING;
+      const nh = curr.h + (tgt.h - curr.h) * SMOOTHING;
+      const eps = tgt.w * 0.0005;
+      const maxDelta = Math.max(
+        Math.abs(tgt.x - nx), Math.abs(tgt.y - ny),
+        Math.abs(tgt.w - nw), Math.abs(tgt.h - nh)
+      );
+      if (maxDelta < eps) {
+        rafIdRef.current = null;
+        return tgt;
+      }
+      rafIdRef.current = requestAnimationFrame(tick);
+      return { x: nx, y: ny, w: nw, h: nh };
+    });
+  }, []);
+
+  const startAnim = useCallback(() => {
+    if (rafIdRef.current == null) {
+      rafIdRef.current = requestAnimationFrame(tick);
+    }
+  }, [tick]);
+
+  const setViewBoxImmediate = useCallback((vb) => {
+    targetVbRef.current = vb;
+    if (rafIdRef.current != null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    setViewBox(vb);
+  }, []);
+
+  const zoomBy = useCallback((factor, focusX, focusY) => {
+    const cur = targetVbRef.current;
+    const newW = cur.w / factor;
+    const newH = cur.h / factor;
+    const dvb = defaultViewBox();
+    if (dvb.w / newW > ZOOM_MAX || dvb.w / newW < ZOOM_MIN) return;
+    const fx = focusX !== undefined ? focusX : cur.x + cur.w / 2;
+    const fy = focusY !== undefined ? focusY : cur.y + cur.h / 2;
+    const nx = fx - (fx - cur.x) / factor;
+    const ny = fy - (fy - cur.y) / factor;
+    targetVbRef.current = { x: nx, y: ny, w: newW, h: newH };
+    startAnim();
+  }, [startAnim]);
+
+  const zoomFit = useCallback(() => {
+    targetVbRef.current = defaultViewBox();
+    startAnim();
+  }, [startAnim]);
+
+  // Nudge currently-selected element by (dx, dy) in mm.
+  const nudge = useCallback((dx, dy) => {
+    setState((s) => {
+      if (!selected) return s;
+      const apply = (p) => ({ x: clampScene(p.x + dx, 'x'), y: clampScene(p.y + dy, 'y') });
+      const { kind, beltIdx } = selected;
+      if (kind === 'motor')        return { ...s, motor:        apply(s.motor) };
+      if (kind === 'intermediate') return { ...s, intermediate: apply(s.intermediate) };
+      if (kind === 'output')       return { ...s, output:       apply(s.output) };
+      if (kind === 'tensioner') {
+        const key = `stage${beltIdx}`;
+        const t = s[key].tensioner;
+        if (!t) return s;
+        return { ...s, [key]: { ...s[key], tensioner: apply(t) } };
+      }
+      return s;
+    });
+  }, [selected]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e) => {
+      // Ignore when typing in inputs
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomBy(ZOOM_STEP); }
+      else if (meta && e.key === '-') { e.preventDefault(); zoomBy(1 / ZOOM_STEP); }
+      else if (meta && (e.key === '0' || e.key === ')')) { e.preventDefault(); zoomFit(); }
+      else if (!meta && e.key === '+') { zoomBy(ZOOM_STEP); }
+      else if (!meta && e.key === '-') { zoomBy(1 / ZOOM_STEP); }
+      else if (!meta && e.key === '0') { zoomFit(); }
+      else if (e.key === 'Escape') { setEditing(null); setSelected(null); }
+      else if (selected && (e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
+                            e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        if (e.key === 'ArrowUp')    nudge(0, -step);
+        if (e.key === 'ArrowDown')  nudge(0,  step);
+        if (e.key === 'ArrowLeft')  nudge(-step, 0);
+        if (e.key === 'ArrowRight') nudge( step, 0);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoomBy, zoomFit, selected, nudge]);
+
+  const updateState = useCallback((updater) => {
+    setState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      return enforceLocks(next);
+    });
+  }, []);
+
+  const showToast = useCallback((msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 1500);
+  }, []);
+
+  const onReset = () => {
+    if (confirm('Сбросить к настройкам по умолчанию?')) {
+      setState(DEFAULT_STATE);
+      showToast('Сброшено');
+    }
+  };
+
+  const onCopyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      showToast('Ссылка скопирована');
+    } catch {
+      showToast('Не удалось скопировать');
+    }
+  };
+
+  const onCopyJson = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(state, null, 2));
+      showToast('JSON скопирован');
+    } catch {
+      showToast('Не удалось скопировать');
+    }
+  };
+
+  const onExportSvg = () => {
+    const svgEl = document.querySelector('.scene-svg');
+    if (!svgEl) return;
+    const clone = svgEl.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const blob = new Blob(
+      ['<?xml version="1.0" encoding="UTF-8"?>\n' + clone.outerHTML],
+      { type: 'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'belt-drive.svg';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('SVG сохранён');
+  };
+
+  const onExportPng = async () => {
+    try {
+      await exportPng(state, calc);
+      showToast('PNG сохранён');
+    } catch (e) {
+      console.error(e);
+      showToast('Не удалось');
+    }
+  };
+
+  return html`
+    <${React.Fragment}>
+      <div class="toolbar">
+        <span class="title">BELT DRIVE PLANNER</span>
+        <button onClick=${onReset}>Reset</button>
+        <button onClick=${onCopyUrl}>Copy URL</button>
+        <button onClick=${onCopyJson}>Copy JSON</button>
+        <button onClick=${onExportSvg}>Export SVG</button>
+        <button onClick=${onExportPng}>Export PNG</button>
+        <label class="toggle">
+          <input type="checkbox" checked=${state.snapToGrid}
+            onChange=${(e) => updateState((s) => ({ ...s, snapToGrid: e.target.checked }))} />
+          Snap to grid (${SNAP_STEP}mm)
+        </label>
+        <span class="spacer"></span>
+        <span class="toast ${toast ? 'show' : ''}">${toast}</span>
+      </div>
+      <div class="layout">
+        <${ParameterPanel} state=${state} setState=${updateState} />
+        <div class="scene-host">
+          <${Scene} state=${state} setState=${updateState} calc=${calc}
+            drag=${drag} setDrag=${setDrag}
+            viewBox=${viewBox} setViewBox=${setViewBoxImmediate} zoomBy=${zoomBy}
+            editing=${editing} setEditing=${setEditing}
+            setDistEdit=${setDistEdit}
+            setLengthEdit=${setLengthEdit}
+            selected=${selected} setSelected=${setSelected}
+            nudge=${nudge} />
+          <div class="zoom-ctl">
+            <button title="Zoom in (+)" onClick=${() => zoomBy(ZOOM_STEP)}>+</button>
+            <button title="Fit (0)" onClick=${zoomFit}>⊡</button>
+            <button title="Zoom out (−)" onClick=${() => zoomBy(1 / ZOOM_STEP)}>−</button>
+            <div class="zoom-label">${(defaultViewBox().w / viewBox.w * 100).toFixed(0)}%</div>
+          </div>
+          ${editing && html`<${EditModal} key=${editing.kind + (editing.beltIdx || '')}
+            state=${state} setState=${updateState} calc=${calc}
+            editing=${editing} setEditing=${setEditing} showToast=${showToast} />`}
+          ${distEdit && html`<${DistanceModal} key=${`dist${distEdit.stageIdx}`}
+            state=${state} setState=${updateState} calc=${calc}
+            distEdit=${distEdit} setDistEdit=${setDistEdit} showToast=${showToast} />`}
+          ${lengthEdit && html`<${BeltLengthModal} key=${`len${lengthEdit.stageIdx}`}
+            state=${state} setState=${updateState} calc=${calc}
+            lengthEdit=${lengthEdit} setLengthEdit=${setLengthEdit} showToast=${showToast} />`}
+        </div>
+        <${ResultsPanel} state=${state} calc=${calc} />
+      </div>
+    <//>
+  `;
+}
+
+// ============================================================
+// PARAMETER PANEL
+// ============================================================
+
+function ParameterPanel({ state, setState }) {
+  const upd = (patch) => setState((s) => ({ ...s, ...patch }));
+  const updStage = (idx, patch) => setState((s) => ({
+    ...s, [`stage${idx}`]: { ...s[`stage${idx}`], ...patch },
+  }));
+
+  const toggleTensioner = (idx) => setState((s) => {
+    const key = `stage${idx}`;
+    const st = s[key];
+    if (st.tensioner) {
+      return { ...s, [key]: { ...st, tensioner: null } };
+    }
+    const side = st.tensionerSide || 'auto';
+    const pos = tensionerPosForSide(s, idx, side, null);
+    return { ...s, [key]: { ...st, tensioner: pos } };
+  });
+
+  const stageBlock = (idx) => {
+    const st = state[`stage${idx}`];
+    const label = state.stages === 1
+      ? 'Ступень'
+      : `Ступень ${idx}`;
+    const drivingLabel = state.stages === 1
+      ? 'Шкив на моторе (T)'
+      : (idx === 1 ? 'Шкив на моторе (T)' : 'Шкив на intermediate (T)');
+    const drivenLabel = state.stages === 1
+      ? 'Шкив на выходе (T)'
+      : (idx === 1 ? 'Шкив на intermediate (T)' : 'Шкив на выходе (T)');
+    return html`
+      <div class="stage-block stage${idx}" key=${idx}>
+        <div class="stage-title">${label}</div>
+        <div class="field">
+          <label>${drivingLabel}</label>
+          <input type="number" min="8" max="200" value=${st.drivingTeeth}
+            onChange=${(e) => updStage(idx, { drivingTeeth: clampInt(e.target.value, 8, 200, st.drivingTeeth) })} />
+        </div>
+        <div class="field">
+          <label>${drivenLabel}</label>
+          <input type="number" min="8" max="200" value=${st.drivenTeeth}
+            onChange=${(e) => updStage(idx, { drivenTeeth: clampInt(e.target.value, 8, 200, st.drivenTeeth) })} />
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="tens${idx}" checked=${!!st.tensioner}
+            onChange=${() => toggleTensioner(idx)} />
+          <label for="tens${idx}">Натяжитель</label>
+        </div>
+        ${st.tensioner && html`
+          <div class="field">
+            <label>Диаметр натяжителя</label>
+            <input type="number" min="6" max="60" step="1" value=${st.tensionerDiameter}
+              onChange=${(e) => updStage(idx, { tensionerDiameter: clampInt(e.target.value, 6, 60, st.tensionerDiameter) })} />
+          </div>
+          <div class="field">
+            <label>Сторона ремня</label>
+            <select value=${st.tensionerSide || 'auto'}
+              onChange=${(e) => {
+                const newSide = e.target.value;
+                setState((s) => {
+                  const k = `stage${idx}`;
+                  const cur = s[k];
+                  const next = { ...cur, tensionerSide: newSide };
+                  // Jump tensioner across the belt — same perpendicular
+                  // side, new magnitude (inside vs outside the loop).
+                  if (cur.tensioner) {
+                    const newPos = tensionerPosForSide(s, idx, newSide, cur.tensioner);
+                    if (newPos) next.tensioner = newPos;
+                  }
+                  return { ...s, [k]: next };
+                });
+              }}>
+              <option value="auto">INT — изнутри (convex)</option>
+              <option value="inverted">EXT — снаружи (back-side)</option>
+            </select>
+          </div>
+          <div class="help">
+            INT: ремень огибает натяжитель зубчатой стороной, как 3-й шкив.<br/>
+            EXT: натяжитель снаружи петли, давит на гладкую спинку ремня внутрь.
+          </div>
+        `}
+      </div>
+    `;
+  };
+
+  return html`
+    <div class="panel">
+      <h2>Параметры</h2>
+
+      <h3>Топология</h3>
+      <div class="radio-row">
+        <label><input type="radio" name="stages" checked=${state.stages === 1}
+          onChange=${() => upd({ stages: 1 })} /> 1 ступень</label>
+        <label><input type="radio" name="stages" checked=${state.stages === 2}
+          onChange=${() => upd({ stages: 2 })} /> 2 ступени</label>
+      </div>
+
+      <div class="field">
+        <label>Профиль ремня</label>
+        <select value=${state.beltProfile}
+          onChange=${(e) => upd({ beltProfile: e.target.value })}>
+          ${Object.keys(BELT_PROFILES).map((p) => html`<option key=${p} value=${p}>${p}</option>`)}
+        </select>
+      </div>
+
+      <h3>Ступени</h3>
+      ${stageBlock(1)}
+      ${state.stages === 2 && stageBlock(2)}
+
+      <h3>Мотор</h3>
+      <div class="field">
+        <label>Шагов на оборот</label>
+        <input type="number" min="48" max="800" step="1" value=${state.stepsPerRev}
+          onChange=${(e) => upd({ stepsPerRev: clampInt(e.target.value, 48, 800, state.stepsPerRev) })} />
+      </div>
+      <div class="field">
+        <label>Микрошаг</label>
+        <select value=${state.microstep}
+          onChange=${(e) => upd({ microstep: parseInt(e.target.value, 10) })}>
+          ${MICROSTEPS.map((m) => html`<option key=${m} value=${m}>${m}x</option>`)}
+        </select>
+      </div>
+
+      <h3>Прочее</h3>
+      <div class="field">
+        <label>Диаметр вала (визуально)</label>
+        <input type="number" min="3" max="20" step="0.5" value=${state.shaftDiameter}
+          onChange=${(e) => upd({ shaftDiameter: clampFloat(e.target.value, 3, 20, state.shaftDiameter) })} />
+      </div>
+
+      <div class="help">
+        Drag элемента — переместить (Shift = по одной оси).<br/>
+        Click — выделить, тогда видны X/Y-стрелки гизмо.<br/>
+        Drag красной/зелёной стрелки — движение строго по оси.<br/>
+        <span class="key-hint">←↑→↓</span> — нудж (Shift ×10).<br/>
+        Double-click — модалка X/Y + snap-to-std.<br/>
+        Pan: drag ПКМ, drag пустого холста, либо <span class="key-hint">Space</span>+drag.
+      </div>
+    </div>
+  `;
+}
+
+function clampInt(v, lo, hi, fallback) {
+  const n = parseInt(v, 10);
+  if (Number.isNaN(n)) return fallback;
+  return Math.max(lo, Math.min(hi, n));
+}
+function clampFloat(v, lo, hi, fallback) {
+  const n = parseFloat(v);
+  if (Number.isNaN(n)) return fallback;
+  return Math.max(lo, Math.min(hi, n));
+}
+
+// ============================================================
+// SCENE (SVG)
+// ============================================================
+
+function Scene({ state, setState, calc, drag, setDrag, viewBox, setViewBox, zoomBy, editing, setEditing, setDistEdit, setLengthEdit, selected, setSelected, nudge }) {
+  const svgRef = useRef(null);
+  const dragRef = useRef(null);
+  // dragRef: { kind, beltIdx, startWorld, startPointer, moved, axisLock? }
+  const panRef = useRef(null);
+  // panRef: { startPointerScreen, startViewBox, moved, kind: 'pan'|'bg' }
+  const spaceRef = useRef(false);
+  const [spaceDown, setSpaceDown] = useState(false);
+  const [panning, setPanning] = useState(false);
+
+  // Track Space key state globally
+  useEffect(() => {
+    const isInputFocused = () => {
+      const a = document.activeElement;
+      return a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA');
+    };
+    const onDown = (e) => {
+      if (e.code === 'Space' && !isInputFocused()) {
+        e.preventDefault();
+        spaceRef.current = true;
+        setSpaceDown(true);
+      }
+    };
+    const onUp = (e) => {
+      if (e.code === 'Space') {
+        spaceRef.current = false;
+        setSpaceDown(false);
+      }
+    };
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
+    return () => {
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+    };
+  }, []);
+
+  // Convert pointer event to scene mm coords
+  const toSceneCoords = useCallback((evt) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  }, []);
+
+  const snap = (v) => state.snapToGrid ? Math.round(v / SNAP_STEP) * SNAP_STEP : v;
+
+  // Generic drag starter for elements + axis-gizmo. axisLock ∈ {undefined, 'x', 'y'}.
+  const startElementDrag = (kind, beltIdx, evt, axisLock) => {
+    const scene = toSceneCoords(evt);
+    let startWorld;
+    if (kind === 'motor')        startWorld = { ...state.motor };
+    else if (kind === 'intermediate') startWorld = { ...state.intermediate };
+    else if (kind === 'output')  startWorld = { ...state.output };
+    else if (kind === 'tensioner') {
+      const st = state[`stage${beltIdx}`];
+      if (!st || !st.tensioner) return;
+      startWorld = { ...st.tensioner };
+    }
+    dragRef.current = {
+      kind, beltIdx, startWorld,
+      startPointer: scene,
+      moved: false,
+      axisLock,
+    };
+    setDrag({ kind, beltIdx });
+    if (evt.target.setPointerCapture) evt.target.setPointerCapture(evt.pointerId);
+  };
+
+  const onPointerDown = (kind, beltIdx) => (evt) => {
+    // RMB or Space-held → fall through to SVG-level pan handler
+    if (evt.button !== 0 || spaceRef.current) return;
+    evt.stopPropagation();
+    startElementDrag(kind, beltIdx, evt);
+  };
+
+  // Used by ArrowWidget to start an axis-constrained drag of the selected element.
+  const onAxisDragStart = (axis) => (evt) => {
+    if (!selected) return;
+    if (evt.button !== 0 || spaceRef.current) return;
+    evt.stopPropagation();
+    startElementDrag(selected.kind, selected.beltIdx, evt, axis);
+  };
+
+  const onPointerMove = (evt) => {
+    // Element drag takes priority over pan
+    const d = dragRef.current;
+    if (d) {
+      const scene = toSceneCoords(evt);
+      let dx = scene.x - d.startPointer.x;
+      let dy = scene.y - d.startPointer.y;
+      if (Math.abs(dx) > 0.3 || Math.abs(dy) > 0.3) d.moved = true;
+      if (d.axisLock === 'x') dy = 0;
+      else if (d.axisLock === 'y') dx = 0;
+      else if (evt.shiftKey) {
+        if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0;
+      }
+      const nx = clampScene(snap(d.startWorld.x + dx), 'x');
+      const ny = clampScene(snap(d.startWorld.y + dy), 'y');
+
+      setState((s) => {
+        if (d.kind === 'motor')        return { ...s, motor:        { x: nx, y: ny } };
+        if (d.kind === 'intermediate') return { ...s, intermediate: { x: nx, y: ny } };
+        if (d.kind === 'output')       return { ...s, output:       { x: nx, y: ny } };
+        if (d.kind === 'tensioner') {
+          const key = `stage${d.beltIdx}`;
+          return { ...s, [key]: { ...s[key], tensioner: { x: nx, y: ny } } };
+        }
+        return s;
+      });
+      return;
+    }
+
+    const p = panRef.current;
+    if (p) {
+      const dx = evt.clientX - p.startPointerScreen.x;
+      const dy = evt.clientY - p.startPointerScreen.y;
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+        if (!p.moved) {
+          p.moved = true;
+          if (p.kind === 'pan' || p.kind === 'bg') setPanning(true);
+          // Late-capture for bg-pan so we keep receiving pointermove even
+          // when the cursor leaves the originating element.
+          if (!p.captured && svgRef.current.setPointerCapture) {
+            try {
+              svgRef.current.setPointerCapture(p.pointerId);
+              p.captured = true;
+            } catch {}
+          }
+        }
+      }
+      if (!p.moved) return;
+      const r = svgRef.current.getBoundingClientRect();
+      if (!r || r.width === 0) return;
+      // Convert screen Δ → scene Δ via viewBox scale
+      const dxScene = (dx / r.width) * p.startViewBox.w;
+      const dyScene = (dy / r.height) * p.startViewBox.h;
+      setViewBox({
+        ...p.startViewBox,
+        x: p.startViewBox.x - dxScene,
+        y: p.startViewBox.y - dyScene,
+      });
+    }
+  };
+
+  const onPointerUp = (evt) => {
+    const d = dragRef.current;
+    if (d) {
+      if (!d.moved) {
+        setSelected((cur) => {
+          if (cur && cur.kind === d.kind && cur.beltIdx === d.beltIdx) return null;
+          return { kind: d.kind, beltIdx: d.beltIdx };
+        });
+      }
+      dragRef.current = null;
+      setDrag(null);
+    }
+    const p = panRef.current;
+    if (p) {
+      if (!p.moved && p.kind === 'bg') {
+        // Pure background click without drag → clear selection
+        setSelected(null);
+      }
+      panRef.current = null;
+      setPanning(false);
+    }
+  };
+
+  // SVG-level pointerdown — only fires when no element captured it. Decides
+  // whether to start a pan or just record a potential bg-click. For bg-click
+  // we defer setPointerCapture until movement is detected, so the SVG
+  // doesn't hijack pointer events from clickable children (text/badge),
+  // which would break their native dblclick detection.
+  const onSvgPointerDown = (evt) => {
+    if (evt.button === 1) return; // middle button — ignore
+    const isPanGesture = evt.button === 2 || (evt.button === 0 && spaceRef.current);
+    const isBgClick    = evt.button === 0 && !spaceRef.current;
+    if (!isPanGesture && !isBgClick) return;
+    panRef.current = {
+      startPointerScreen: { x: evt.clientX, y: evt.clientY },
+      startViewBox: { ...viewBox },
+      moved: false,
+      kind: isPanGesture ? 'pan' : 'bg',
+      pointerId: evt.pointerId,
+      captured: false,
+    };
+    if (isPanGesture && svgRef.current.setPointerCapture) {
+      try {
+        svgRef.current.setPointerCapture(evt.pointerId);
+        panRef.current.captured = true;
+      } catch {}
+    }
+  };
+
+  const onContextMenu = (evt) => { evt.preventDefault(); };
+
+  const onDoubleClick = (kind, beltIdx) => (evt) => {
+    evt.stopPropagation();
+    setEditing({
+      kind, beltIdx,
+      screenX: evt.clientX,
+      screenY: evt.clientY,
+    });
+  };
+
+  const onWheel = (evt) => {
+    evt.preventDefault();
+    const scene = toSceneCoords(evt);
+    const factor = evt.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+    zoomBy(factor, scene.x, scene.y);
+  };
+
+  // Wheel needs non-passive listener; React 18 attaches passive by default
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const handler = (e) => onWheel(e);
+    svg.addEventListener('wheel', handler, { passive: false });
+    return () => svg.removeEventListener('wheel', handler);
+  }, [zoomBy]);
+
+  const vb = viewBox;
+  const svgClass = 'scene-svg' +
+    (panning ? ' panning' : '') +
+    (!panning && spaceDown ? ' pan-ready' : '') +
+    (drag ? ' dragging' : '');
+  return html`
+    <svg ref=${svgRef}
+      class=${svgClass}
+      viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}"
+      preserveAspectRatio="xMidYMid meet"
+      onPointerDown=${onSvgPointerDown}
+      onPointerMove=${onPointerMove}
+      onPointerUp=${onPointerUp}
+      onPointerCancel=${onPointerUp}
+      onContextMenu=${onContextMenu}
+    >
+      <defs>
+        <pattern id="gridMinor" width=${GRID_MINOR} height=${GRID_MINOR} patternUnits="userSpaceOnUse">
+          <path d="M ${GRID_MINOR} 0 L 0 0 0 ${GRID_MINOR}"
+            fill="none" stroke="var(--grid-minor)" stroke-width="0.15"/>
+        </pattern>
+        <pattern id="gridMajor" width=${GRID_MAJOR} height=${GRID_MAJOR} patternUnits="userSpaceOnUse">
+          <path d="M ${GRID_MAJOR} 0 L 0 0 0 ${GRID_MAJOR}"
+            fill="none" stroke="var(--grid-major)" stroke-width="0.3"/>
+        </pattern>
+      </defs>
+
+      <!-- Scene background + grid (inside scene rect) -->
+      <rect x=${-SCENE_HALF_W} y=${-SCENE_HALF_H} width=${SCENE_W} height=${SCENE_H} fill="var(--bg)"/>
+      <rect x=${-SCENE_HALF_W} y=${-SCENE_HALF_H} width=${SCENE_W} height=${SCENE_H} fill="url(#gridMinor)"/>
+      <rect x=${-SCENE_HALF_W} y=${-SCENE_HALF_H} width=${SCENE_W} height=${SCENE_H} fill="url(#gridMajor)"/>
+
+      <!-- Border of scene rect -->
+      <rect x=${-SCENE_HALF_W} y=${-SCENE_HALF_H} width=${SCENE_W} height=${SCENE_H}
+        fill="none" stroke="var(--line-dim)" stroke-width="0.4"/>
+
+      <!-- Axis lines through origin (visual reference) -->
+      <line x1=${-SCENE_HALF_W} y1="0" x2=${SCENE_HALF_W} y2="0"
+        stroke="var(--line-faint)" stroke-width="0.3" stroke-dasharray="2 3"/>
+      <line x1="0" y1=${-SCENE_HALF_H} x2="0" y2=${SCENE_HALF_H}
+        stroke="var(--line-faint)" stroke-width="0.3" stroke-dasharray="2 3"/>
+
+      <!-- Rulers -->
+      <${Rulers} />
+
+      <!-- Belts (under pulleys) -->
+      <${BeltLayer} state=${state} calc=${calc} />
+
+      <!-- Dimension lines -->
+      <${Dimensions} state=${state} calc=${calc} setDistEdit=${setDistEdit} />
+
+      <!-- Belt length badges -->
+      <${BeltBadgeLayer} state=${state} calc=${calc} setLengthEdit=${setLengthEdit} />
+
+      <!-- Pulleys + shafts -->
+      <${PulleyLayer} state=${state} calc=${calc} drag=${drag} selected=${selected}
+        onPointerDown=${onPointerDown} onDoubleClick=${onDoubleClick} />
+
+      <!-- Tensioners (idlers) -->
+      <${TensionerLayer} state=${state} calc=${calc} drag=${drag} selected=${selected}
+        onPointerDown=${onPointerDown} onDoubleClick=${onDoubleClick} />
+
+      <!-- Axis gizmo around selected element -->
+      ${selected && html`<${ArrowWidget} state=${state} calc=${calc}
+        selected=${selected} viewBox=${viewBox}
+        onAxisDragStart=${onAxisDragStart} />`}
+    </svg>
+  `;
+}
+
+function clampScene(v, axis) {
+  const half = axis === 'x' ? SCENE_HALF_W : SCENE_HALF_H;
+  return Math.max(-half, Math.min(half, v));
+}
+
+// ============================================================
+// SCENE: RULERS
+// ============================================================
+
+function Rulers() {
+  const ticks = [];
+  for (let x = -SCENE_HALF_W; x <= SCENE_HALF_W; x += GRID_MAJOR) {
+    ticks.push(html`<text key=${`tx${x}`} x=${x} y=${-SCENE_HALF_H - 4}
+      font-size="5" font-family="var(--mono)" fill="var(--line-dim)"
+      text-anchor="middle">${x}</text>`);
+  }
+  for (let y = -SCENE_HALF_H; y <= SCENE_HALF_H; y += GRID_MAJOR) {
+    ticks.push(html`<text key=${`ty${y}`} x=${-SCENE_HALF_W - 4} y=${y + 1.8}
+      font-size="5" font-family="var(--mono)" fill="var(--line-dim)"
+      text-anchor="end">${y}</text>`);
+  }
+  // Origin crosshair (visual reference for motor anchor)
+  ticks.push(html`<line key="ox" x1=${-2} y1="0" x2=${2} y2="0"
+    stroke="var(--accent)" stroke-width="0.25" opacity="0.5"/>`);
+  ticks.push(html`<line key="oy" x1="0" y1=${-2} x2="0" y2=${2}
+    stroke="var(--accent)" stroke-width="0.25" opacity="0.5"/>`);
+  // Corner mm label
+  ticks.push(html`<text key="mm" x=${-SCENE_HALF_W - 4} y=${-SCENE_HALF_H - 4}
+    font-size="4" font-family="var(--mono)" fill="var(--line-dim)"
+    text-anchor="end">mm</text>`);
+  return html`<g>${ticks}</g>`;
+}
+
+// ============================================================
+// SCENE: BELTS
+// ============================================================
+
+function BeltLayer({ state, calc }) {
+  const items = [];
+  if (calc.stage1 && calc.stage1.belt) {
+    items.push(html`<${BeltShape} key="b1" belt=${calc.stage1.belt}
+      color="var(--belt1)" />`);
+  }
+  if (state.stages === 2 && calc.stage2 && calc.stage2.belt) {
+    items.push(html`<${BeltShape} key="b2" belt=${calc.stage2.belt}
+      color="var(--belt2)" />`);
+  }
+  return html`<g>${items}</g>`;
+}
+
+// Belt length badge: big standard L, small actual L. Pinned to the midpoint
+// of the stage's centerline, offset perpendicular OPPOSITE to dim label so
+// they don't overlap and the badge stays put as pulleys move.
+function BeltBadgeLayer({ state, calc, setLengthEdit }) {
+  const items = [];
+  const stagePair = (idx, a, b, info) => {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx / len, uy = dy / len;
+    // Dim line offset uses: uy>=0 ? (-uy,ux) : (uy,-ux). Pick OPPOSITE.
+    const perp = uy >= 0 ? { x: uy, y: -ux } : { x: -uy, y: ux };
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    // Push badge OUTSIDE the belt: max perpendicular extent of all circles
+    // in the belt (pulleys + optional tensioner) projected onto `perp` from
+    // the midpoint, plus a small margin.
+    let extent = Math.max(info.r1, info.r2);
+    if (info.belt && info.belt.arcs) {
+      for (const arc of info.belt.arcs) {
+        const projC = (arc.center.x - mx) * perp.x + (arc.center.y - my) * perp.y;
+        const e = projC + arc.radius;
+        if (e > extent) extent = e;
+      }
+    }
+    const off = extent + 5;
+    const cx = mx + perp.x * off, cy = my + perp.y * off;
+    const color = idx === 1 ? 'var(--belt1)' : 'var(--belt2)';
+    const onDbl = (evt) => {
+      evt.stopPropagation();
+      setLengthEdit({ stageIdx: idx, screenX: evt.clientX, screenY: evt.clientY });
+    };
+    const locked = Number.isFinite(info.lockL);
+    const lockMiss = locked && Math.abs(info.Lreal - info.lockL) > 1;
+    const headColor = lockMiss ? 'var(--error)' : color;
+    const actualColor = lockMiss ? 'var(--error)' : 'var(--line-dim)';
+    items.push(html`
+      <g key=${`bb${idx}`} style=${{ cursor: 'pointer' }} onDoubleClick=${onDbl}>
+        <text x=${cx} y=${cy - 0.75} text-anchor="middle" dominant-baseline="middle"
+          font-family="var(--mono)" font-size="5" font-weight="bold" fill=${headColor}>
+          ${locked ? '🔒 ' : ''}${locked ? info.lockL.toFixed(0) : info.nearest.length} mm
+        </text>
+        <text x=${cx} y=${cy + 3.75} text-anchor="middle" dominant-baseline="middle"
+          font-family="var(--mono)" font-size="2.25" fill=${actualColor}>
+          actual ${info.Lreal.toFixed(1)}
+          ${locked
+            ? (lockMiss ? ` · недостижимо` : '')
+            : (Math.abs(info.nearest.delta) < 0.05 ? '' : ` · Δ${info.nearest.delta >= 0 ? '+' : ''}${info.nearest.delta.toFixed(1)}`)}
+        </text>
+      </g>
+    `);
+  };
+  if (calc.stage1) {
+    const b = state.stages === 1 ? state.output : state.intermediate;
+    stagePair(1, state.motor, b, calc.stage1);
+  }
+  if (state.stages === 2 && calc.stage2) {
+    stagePair(2, state.intermediate, state.output, calc.stage2);
+  }
+  return html`<g>${items}</g>`;
+}
+
+function BeltShape({ belt, color }) {
+  if (!belt) return null;
+  const { tangents, arcs } = belt;
+  if (!tangents || !arcs) return null;
+  const N = tangents.length;
+  const finite = (n) => Number.isFinite(n);
+  const okTan = (t) => t && finite(t.t1.x) && finite(t.t1.y) && finite(t.t2.x) && finite(t.t2.y);
+  const okArc = (a) => a && finite(a.radius) && a.radius > 0 && finite(a.wrap);
+  const fmt = (n) => n.toFixed(4);
+  const items = [];
+
+  // Each tangent rendered as its own <line>. If one is degenerate, the
+  // others still show — no full-belt blackout from a single bad segment.
+  for (let i = 0; i < N; i++) {
+    const t = tangents[i];
+    if (!okTan(t)) continue;
+    items.push(html`
+      <line key=${`tan${i}`}
+        x1=${fmt(t.t1.x)} y1=${fmt(t.t1.y)}
+        x2=${fmt(t.t2.x)} y2=${fmt(t.t2.y)}
+        stroke=${color} stroke-width="1.2"
+        stroke-linecap="round" opacity="0.95" pointer-events="none"/>
+    `);
+  }
+
+  // Each arc as its own <path>. arcs[i] wraps on hull[i]; it bridges
+  // tangents[i-1].t2 (incoming) → tangents[i].t1 (outgoing).
+  for (let i = 0; i < N; i++) {
+    const a = arcs[i];
+    const start = tangents[(i - 1 + N) % N];
+    const end = tangents[i];
+    if (!okArc(a) || !okTan(start) || !okTan(end)) continue;
+    const wrap = Math.min(Math.max(a.wrap, 1e-4), Math.PI * 2 - 1e-4);
+    const largeArc = wrap > Math.PI ? 1 : 0;
+    const sweep = a.dir > 0 ? 1 : 0;
+    const d = `M ${fmt(start.t2.x)} ${fmt(start.t2.y)} ` +
+              `A ${fmt(a.radius)} ${fmt(a.radius)} 0 ${largeArc} ${sweep} ${fmt(end.t1.x)} ${fmt(end.t1.y)}`;
+    items.push(html`
+      <path key=${`arc${i}`} d=${d}
+        fill="none" stroke=${color} stroke-width="1.2"
+        stroke-linecap="round" opacity="0.95" pointer-events="none"/>
+    `);
+  }
+
+  return html`<g class="belt">${items}</g>`;
+}
+
+// ============================================================
+// SCENE: PULLEYS + SHAFTS
+// ============================================================
+
+function PulleyLayer({ state, calc, drag, selected, onPointerDown, onDoubleClick }) {
+  const sd = state.shaftDiameter;
+  const items = [];
+  const isSel = (k, b) => selected && selected.kind === k && (b === undefined || selected.beltIdx === b);
+
+  // Motor shaft
+  items.push(html`
+    <${ShaftCircle}
+      key="motor"
+      pos=${state.motor}
+      shaftDia=${sd}
+      pulleys=${[{ r: calc.stage1.r1, color: 'var(--belt1)' }]}
+      label="M"
+      isActive=${(drag && drag.kind === 'motor') || isSel('motor')}
+      selected=${isSel('motor')}
+      onPointerDown=${onPointerDown('motor')}
+      onDoubleClick=${onDoubleClick('motor')}
+    />
+  `);
+
+  if (state.stages === 1) {
+    items.push(html`
+      <${ShaftCircle}
+        key="output"
+        pos=${state.output}
+        shaftDia=${sd}
+        pulleys=${[{ r: calc.stage1.r2, color: 'var(--belt1)' }]}
+        label="OUT"
+        isActive=${(drag && drag.kind === 'output') || isSel('output')}
+        selected=${isSel('output')}
+        onPointerDown=${onPointerDown('output')}
+        onDoubleClick=${onDoubleClick('output')}
+      />
+    `);
+  } else {
+    const interPulleys = [
+      { r: calc.stage1.r2, color: 'var(--belt1)' },
+      { r: calc.stage2.r1, color: 'var(--belt2)' },
+    ];
+    items.push(html`
+      <${ShaftCircle}
+        key="inter"
+        pos=${state.intermediate}
+        shaftDia=${sd}
+        pulleys=${interPulleys}
+        label="INT"
+        isActive=${(drag && drag.kind === 'intermediate') || isSel('intermediate')}
+        selected=${isSel('intermediate')}
+        onPointerDown=${onPointerDown('intermediate')}
+        onDoubleClick=${onDoubleClick('intermediate')}
+      />
+    `);
+    items.push(html`
+      <${ShaftCircle}
+        key="output2"
+        pos=${state.output}
+        shaftDia=${sd}
+        pulleys=${[{ r: calc.stage2.r2, color: 'var(--belt2)' }]}
+        label="OUT"
+        isActive=${(drag && drag.kind === 'output') || isSel('output')}
+        selected=${isSel('output')}
+        onPointerDown=${onPointerDown('output')}
+        onDoubleClick=${onDoubleClick('output')}
+      />
+    `);
+  }
+
+  return html`<g>${items}</g>`;
+}
+
+function ShaftCircle({ pos, shaftDia, pulleys, label, isActive, selected, onPointerDown, onDoubleClick }) {
+  const stroke = isActive ? 'var(--accent)' : 'var(--line)';
+  const strokeW = isActive ? 0.7 : 0.5;
+  const maxR = Math.max(...pulleys.map(p => p.r));
+  return html`
+    <g transform=${`translate(${pos.x},${pos.y})`}
+       style=${{ cursor: 'grab' }}
+       onPointerDown=${onPointerDown}
+       onDoubleClick=${onDoubleClick}>
+      <circle cx="0" cy="0" r=${maxR + 2.5}
+        fill="none" stroke="var(--accent)" stroke-width="0.3"
+        stroke-dasharray="1.5 1.2" opacity="0.85"
+        visibility=${selected ? 'visible' : 'hidden'}
+        pointer-events="none"/>
+      ${pulleys.map((p, i) => html`
+        <circle key=${i} cx="0" cy="0" r=${p.r}
+          fill="none" stroke=${p.color} stroke-width=${strokeW}
+          opacity=${isActive ? 1 : 0.85} />
+        <circle key=${i + '_in'} cx="0" cy="0" r=${Math.max(0.5, p.r - 1.5)}
+          fill="none" stroke=${p.color} stroke-width="0.15" opacity="0.45"/>
+      `)}
+      <circle cx="0" cy="0" r=${shaftDia / 2}
+        fill="var(--bg)" stroke=${stroke} stroke-width=${strokeW + 0.1}/>
+      <line x1=${-shaftDia / 2 - 2} y1="0" x2=${shaftDia / 2 + 2} y2="0"
+        stroke=${stroke} stroke-width="0.2"/>
+      <line x1="0" y1=${-shaftDia / 2 - 2} x2="0" y2=${shaftDia / 2 + 2}
+        stroke=${stroke} stroke-width="0.2"/>
+      <text x="0" y=${-(maxR + 3.5)}
+        text-anchor="middle"
+        font-family="var(--mono)" font-size="4.5"
+        fill=${isActive ? 'var(--accent)' : 'var(--line)'}>
+        ${label}
+      </text>
+      <text x="0" y=${maxR + 6}
+        text-anchor="middle"
+        font-family="var(--mono)" font-size="3.5"
+        fill="var(--line-dim)">
+        ${Math.round(pos.x)}, ${Math.round(pos.y)}
+      </text>
+    </g>
+  `;
+}
+
+// ============================================================
+// SCENE: TENSIONERS
+// ============================================================
+
+function TensionerLayer({ state, calc, drag, selected, onPointerDown, onDoubleClick }) {
+  const items = [];
+  const isSel = (b) => selected && selected.kind === 'tensioner' && selected.beltIdx === b;
+  // Place the idler label on the OUTSIDE of the belt's centerline (the side
+  // of the tensioner facing away from line motor↔driven). This avoids the
+  // label sitting between belt segments and overlapping the badge/dim
+  // label that crowd the middle region.
+  const labelDir = (stageIdx, tens) => {
+    const a = stageIdx === 1 ? state.motor : state.intermediate;
+    const b = stageIdx === 1
+      ? (state.stages === 1 ? state.output : state.intermediate)
+      : state.output;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return { x: 0, y: -1 };
+    const px = -dy / len, py = dx / len;
+    const sd = (tens.x - a.x) * px + (tens.y - a.y) * py;
+    const sign = sd >= 0 ? 1 : -1;
+    return { x: px * sign, y: py * sign };
+  };
+  if (state.stage1.tensioner) {
+    items.push(html`
+      <${TensionerCircle}
+        key="t1"
+        pos=${state.stage1.tensioner}
+        diameter=${state.stage1.tensionerDiameter}
+        side=${state.stage1.tensionerSide}
+        color="var(--belt1)"
+        labelDir=${labelDir(1, state.stage1.tensioner)}
+        isActive=${(drag && drag.kind === 'tensioner' && drag.beltIdx === 1) || isSel(1)}
+        selected=${isSel(1)}
+        onPointerDown=${onPointerDown('tensioner', 1)}
+        onDoubleClick=${onDoubleClick('tensioner', 1)}
+      />
+    `);
+  }
+  if (state.stages === 2 && state.stage2.tensioner) {
+    items.push(html`
+      <${TensionerCircle}
+        key="t2"
+        pos=${state.stage2.tensioner}
+        diameter=${state.stage2.tensionerDiameter}
+        side=${state.stage2.tensionerSide}
+        color="var(--belt2)"
+        labelDir=${labelDir(2, state.stage2.tensioner)}
+        isActive=${(drag && drag.kind === 'tensioner' && drag.beltIdx === 2) || isSel(2)}
+        selected=${isSel(2)}
+        onPointerDown=${onPointerDown('tensioner', 2)}
+        onDoubleClick=${onDoubleClick('tensioner', 2)}
+      />
+    `);
+  }
+  return html`<g>${items}</g>`;
+}
+
+function TensionerCircle({ pos, diameter, side, color, labelDir, isActive, selected, onPointerDown, onDoubleClick }) {
+  const r = diameter / 2;
+  const stroke = isActive ? 'var(--accent)' : color;
+  const sideLabel = side === 'inverted' ? 'EXT' : 'INT';
+  const ldX = (labelDir && labelDir.x) || 0;
+  const ldY = (labelDir && labelDir.y) || -1;
+  const lx = ldX * (r + 3);
+  const ly = ldY * (r + 3) + (ldY >= 0 ? 2 : 0); // baseline adjust for "below" placement
+  return html`
+    <g transform=${`translate(${pos.x},${pos.y})`}
+       style=${{ cursor: 'grab' }}
+       onPointerDown=${onPointerDown}
+       onDoubleClick=${onDoubleClick}>
+      <circle cx="0" cy="0" r=${r + 2.5}
+        fill="none" stroke="var(--accent)" stroke-width="0.3"
+        stroke-dasharray="1.5 1.2" opacity="0.85"
+        visibility=${selected ? 'visible' : 'hidden'}
+        pointer-events="none"/>
+      <circle cx="0" cy="0" r=${r}
+        fill="var(--bg)" stroke=${stroke} stroke-width="0.5"/>
+      <circle cx="0" cy="0" r=${r - 1.5} fill="none" stroke=${stroke}
+        stroke-width="0.2" opacity="0.5"/>
+      <circle cx="0" cy="0" r="1.2" fill=${stroke}/>
+      <text x=${lx} y=${ly} text-anchor="middle"
+        font-family="var(--mono)" font-size="3" fill=${stroke}>
+        ⌀${diameter} ${sideLabel}
+      </text>
+    </g>
+  `;
+}
+
+// ============================================================
+// SCENE: NUDGE ARROW WIDGET
+// ============================================================
+
+// Returns mm/pixel for the current viewBox (assumes square pixels in scene).
+function pxPerMm(viewBox) {
+  // Approximate: 1mm = (viewport mm) / (viewBox.w) — but we don't know
+  // viewport in mm directly. We use viewBox.w as our 'screen reference'
+  // and pick arrow sizes proportional to it so they look consistent at
+  // every zoom level.
+  return viewBox.w / 100; // 1 unit ≈ 1% of viewBox width
+}
+
+// Blender-style 2D gizmo: red X arrow + green Y arrow. Drag axis = element
+// moves only along that axis. Y points in +SVG-Y (visually down) so the
+// world axis matches the screen direction.
+function ArrowWidget({ state, calc, selected, viewBox, onAxisDragStart }) {
+  const { kind, beltIdx } = selected;
+  let pos = null, ring = 0;
+  if (kind === 'motor')             { pos = state.motor; ring = calc.stage1.r1; }
+  else if (kind === 'intermediate') {
+    pos = state.intermediate;
+    ring = state.stages === 2 ? Math.max(calc.stage1.r2, calc.stage2.r1) : calc.stage1.r2;
+  }
+  else if (kind === 'output') {
+    pos = state.output;
+    ring = state.stages === 2 ? calc.stage2.r2 : calc.stage1.r2;
+  }
+  else if (kind === 'tensioner') {
+    pos = state[`stage${beltIdx}`].tensioner;
+    ring = state[`stage${beltIdx}`].tensionerDiameter / 2;
+  }
+  if (!pos) return null;
+
+  const u = pxPerMm(viewBox);
+  // Thin & short, from element center (Blender-style). Shaft length 2.5×
+  // smaller than the long version. Hit-zone starts PAST the ring so the
+  // gizmo doesn't steal dblclick from the element underneath.
+  const inner = 0;
+  const outer = Math.max(9.5 * u, ring + 4 * u); // total length from center
+  const headLen = 1.2 * u;
+  const headHalf = 0.5 * u;
+  const tipDist = outer + headLen;
+  const lineW = 0.15 * u;
+  const hitInner = ring + 1 * u;     // hit-zone starts outside element ring
+  const hitW = 2.5 * u;
+
+  const axes = [
+    { axis: 'x', dx: 1, dy: 0, color: '#ff5d5d', label: 'X' },
+    { axis: 'y', dx: 0, dy: 1, color: '#7eea7c', label: 'Y' },
+  ];
+
+  return html`
+    <g class="gizmo" pointer-events="auto">
+      ${axes.map((a) => {
+        const x0 = pos.x + a.dx * inner;
+        const y0 = pos.y + a.dy * inner;
+        const x1 = pos.x + a.dx * outer;
+        const y1 = pos.y + a.dy * outer;
+        const xt = pos.x + a.dx * tipDist;
+        const yt = pos.y + a.dy * tipDist;
+        // Arrowhead triangle: tip at (xt,yt), base perpendicular to axis
+        const px = -a.dy, py = a.dx;
+        const b1x = x1 + px * headHalf, b1y = y1 + py * headHalf;
+        const b2x = x1 - px * headHalf, b2y = y1 - py * headHalf;
+        const triPts = `${xt},${yt} ${b1x},${b1y} ${b2x},${b2y}`;
+        const labelX = pos.x + a.dx * (tipDist + 2 * u);
+        const labelY = pos.y + a.dy * (tipDist + 2 * u) + (a.axis === 'x' ? 1.0 * u : 0);
+        const hx0 = pos.x + a.dx * hitInner;
+        const hy0 = pos.y + a.dy * hitInner;
+        return html`
+          <g key=${a.axis}
+             style=${{ cursor: 'pointer' }}
+             onPointerDown=${onAxisDragStart(a.axis)}>
+            <!-- Hit area starts past the ring so element dblclick isn't stolen -->
+            <line x1=${hx0} y1=${hy0} x2=${xt} y2=${yt}
+              stroke="transparent" stroke-width=${hitW}
+              stroke-linecap="butt"/>
+            <line x1=${x0} y1=${y0} x2=${x1} y2=${y1}
+              stroke=${a.color} stroke-width=${lineW}
+              stroke-linecap="butt" pointer-events="none"/>
+            <polygon points=${triPts} fill=${a.color} stroke="none"
+              pointer-events="none"/>
+            <text x=${labelX} y=${labelY}
+              text-anchor="middle" dominant-baseline="middle"
+              font-family="var(--mono)" font-size=${1.6 * u}
+              font-weight="bold" fill=${a.color} pointer-events="none">
+              ${a.label}
+            </text>
+          </g>
+        `;
+      })}
+    </g>
+  `;
+}
+
+// ============================================================
+// SCENE: DIMENSIONS (center distance per stage)
+// ============================================================
+
+function Dimensions({ state, calc, setDistEdit }) {
+  const lines = [];
+  const addDim = (key, stageIdx, a, b, label) => {
+    const onDbl = (evt) => {
+      evt.stopPropagation();
+      setDistEdit({ stageIdx, screenX: evt.clientX, screenY: evt.clientY });
+    };
+    lines.push(html`<${DimLine} key=${key} a=${a} b=${b} label=${label}
+      onDoubleClick=${onDbl} />`);
+  };
+
+  if (state.stages === 1) {
+    addDim('d1', 1, state.motor, state.output, `C = ${calc.stage1.C.toFixed(1)} mm`);
+  } else {
+    addDim('d1', 1, state.motor, state.intermediate, `C₁ = ${calc.stage1.C.toFixed(1)}`);
+    addDim('d2', 2, state.intermediate, state.output, `C₂ = ${calc.stage2.C.toFixed(1)}`);
+  }
+  return html`<g>${lines}</g>`;
+}
+
+function DimLine({ a, b, label, onDoubleClick }) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return null;
+  const ux = dx / len, uy = dy / len;
+  // Perpendicular for label offset — pick the side with larger SVG Y
+  // (visually lower) so labels don't collide with axis ticks.
+  const perp = uy >= 0 ? { x: -uy, y: ux } : { x: uy, y: -ux };
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  const labelOffset = 3.5;
+  // Rotate label to follow the line direction; flip if going right-to-left so
+  // text never reads upside-down.
+  let deg = Math.atan2(uy, ux) * RAD2DEG;
+  if (deg > 90 || deg < -90) deg += 180;
+  const lx = mx + perp.x * labelOffset;
+  const ly = my + perp.y * labelOffset;
+  return html`
+    <g class="dim">
+      <line x1=${a.x} y1=${a.y} x2=${b.x} y2=${b.y}
+        stroke="var(--dim)" stroke-width="0.3" stroke-dasharray="3 2" opacity="0.85"
+        pointer-events="none"/>
+      <text x=${lx} y=${ly}
+        text-anchor="middle" dominant-baseline="middle"
+        transform=${`rotate(${deg.toFixed(2)} ${lx} ${ly})`}
+        font-family="var(--mono)" font-size="3.8" fill="var(--dim)"
+        style=${{ cursor: 'pointer' }}
+        onDoubleClick=${onDoubleClick}>
+        ${label}
+      </text>
+    </g>
+  `;
+}
+
+// ============================================================
+// RESULTS PANEL
+// ============================================================
+
+function ResultsPanel({ state, calc }) {
+  const stageRows = (idx, info) => {
+    if (!info) return null;
+    const wrap = info.wrap;
+    const wrapClass = wrap < 90 ? 'error' : (wrap < 120 ? 'warn' : 'good');
+    const mesh = info.meshTeeth;
+    const meshClass = mesh < 3 ? 'error' : (mesh < 5 ? 'warn' : 'good');
+    const dL = Math.abs(info.nearest.delta);
+    const stdRange = (BELT_PROFILES[state.beltProfile].standardLengths);
+    const inRange = info.Lreal >= stdRange[0] - 5 && info.Lreal <= stdRange[stdRange.length-1] + 5;
+    const dLClass = !inRange ? 'warn' : (dL > 5 ? 'warn' : 'good');
+
+    return html`
+      <div class="stage-block stage${idx}" key=${idx}>
+        <div class="stage-title">${state.stages === 1 ? 'Ступень' : `Ступень ${idx}`}</div>
+        <div class="result-row">
+          <span class="label">D₁ (ведущий)</span>
+          <span class="value">${info.D1.toFixed(2)} mm</span>
+        </div>
+        <div class="result-row">
+          <span class="label">D₂ (ведомый)</span>
+          <span class="value">${info.D2.toFixed(2)} mm</span>
+        </div>
+        <div class="result-row">
+          <span class="label">C (межосевое)</span>
+          <span class="value">${info.C.toFixed(2)} mm</span>
+        </div>
+        <div class="result-row">
+          <span class="label">L (open formula)</span>
+          <span class="value">${info.Lopen.toFixed(2)} mm</span>
+        </div>
+        <div class="result-row">
+          <span class="label">L (с натяжителем)</span>
+          <span class="value">${info.Lreal.toFixed(2)} mm</span>
+        </div>
+        <div class="result-row">
+          <span class="label">Ближайший стандарт</span>
+          <span class="value">${info.nearest.length} mm</span>
+        </div>
+        <div class="result-row">
+          <span class="label">Δ до стандарта</span>
+          <span class="value ${dLClass}">${info.nearest.delta >= 0 ? '+' : ''}${info.nearest.delta.toFixed(2)} mm</span>
+        </div>
+        <div class="result-row">
+          <span class="label">Угол обхвата (мал.)</span>
+          <span class="value ${wrapClass}">${wrap.toFixed(1)}°</span>
+        </div>
+        <div class="result-row">
+          <span class="label">Зубьев в зацеплении</span>
+          <span class="value ${meshClass}">${mesh} / ${info.smallTeeth}</span>
+        </div>
+        <div class="result-row">
+          <span class="label">Редукция ступени</span>
+          <span class="value">1:${info.ratio.toFixed(3)}</span>
+        </div>
+        ${dL > 5 && inRange && html`
+          <div class="help">
+            Подвинь оси или натяжитель, чтобы выйти на стандарт ${info.nearest.length}мм
+            (нужно ${info.nearest.delta > 0 ? 'сжать' : 'раздвинуть'} ~${dL.toFixed(1)}мм).
+          </div>
+        `}
+        ${!inRange && html`
+          <div class="help">
+            Длина вне диапазона стандартов для ${state.beltProfile}.
+            Возможно, нужен open-ended ремень с зажимами.
+          </div>
+        `}
+      </div>
+    `;
+  };
+
+  const totalRatio = calc.totalReduction;
+  const arcsec = calc.arcsecPerMicrostep;
+  const fullStepArcsec = arcsec * state.microstep;
+
+  return html`
+    <div class="panel right">
+      <h2>Расчёт</h2>
+
+      ${stageRows(1, calc.stage1)}
+      ${state.stages === 2 && stageRows(2, calc.stage2)}
+
+      <h3>Итого</h3>
+      <div class="result-row">
+        <span class="label">Полная редукция</span>
+        <span class="value">1:${totalRatio.toFixed(3)}</span>
+      </div>
+      <div class="result-row">
+        <span class="label">Габариты (W × H)</span>
+        <span class="value">${calc.bbox.w.toFixed(0)} × ${calc.bbox.h.toFixed(0)} mm</span>
+      </div>
+      <div class="result-row">
+        <span class="label">Bounding box origin</span>
+        <span class="value dim">(${calc.bbox.x.toFixed(0)}, ${calc.bbox.y.toFixed(0)})</span>
+      </div>
+
+      <h3>Угловое разрешение</h3>
+      <div class="result-row">
+        <span class="label">Шаг (full step)</span>
+        <span class="value">${formatArcsec(fullStepArcsec)}</span>
+      </div>
+      <div class="result-row">
+        <span class="label">Микрошаг ${state.microstep}x</span>
+        <span class="value">${formatArcsec(arcsec)}</span>
+      </div>
+      <div class="result-row">
+        <span class="label">Микрошагов на ¼ оборота</span>
+        <span class="value">${Math.round(state.stepsPerRev * state.microstep * totalRatio / 4)}</span>
+      </div>
+      <div class="result-row">
+        <span class="label">Микрошагов на 360°</span>
+        <span class="value">${Math.round(state.stepsPerRev * state.microstep * totalRatio)}</span>
+      </div>
+
+      <div class="help">
+        <b>Условные обозначения:</b><br/>
+        Угол обхвата: <span class="badge warn">&lt;120°</span> жёлтый, <span class="badge error">&lt;90°</span> красный<br/>
+        Зубья в зацеплении: <span class="badge warn">&lt;5</span> жёлтый, <span class="badge error">&lt;3</span> красный<br/>
+        Δ&gt;5мм — далеко от стандарта; потребует подвижки осей или натяжителя.
+      </div>
+    </div>
+  `;
+}
+
+function formatArcsec(secs) {
+  if (!isFinite(secs)) return '—';
+  if (secs >= 60) {
+    const minutes = Math.floor(secs / 60);
+    const s = secs - minutes * 60;
+    return `${minutes}′ ${s.toFixed(1)}″`;
+  }
+  return `${secs.toFixed(2)}″ /step`;
+}
+
+// ============================================================
+// EDIT MODAL
+// ============================================================
+
+// Identify which stage/role a target belongs to, what its anchor is, and how
+// to compute the belt length for a candidate position. Used by EditModal's
+// "snap to standard length" action.
+function editTarget(kind, beltIdx, state) {
+  const stagesN = state.stages;
+  if (kind === 'motor') {
+    const anchor = stagesN === 1 ? state.output : state.intermediate;
+    return { stageIdx: 1, anchor, role: 'shaft' };
+  }
+  if (kind === 'output') {
+    const sIdx = stagesN === 1 ? 1 : 2;
+    const anchor = stagesN === 1 ? state.motor : state.intermediate;
+    return { stageIdx: sIdx, anchor, role: 'shaft' };
+  }
+  if (kind === 'intermediate') {
+    return { stageIdx: 1, anchor: state.motor, role: 'shaft' };
+  }
+  if (kind === 'tensioner') {
+    const sIdx = beltIdx;
+    const anchor = sIdx === 1
+      ? midpoint(state.motor, stagesN === 1 ? state.output : state.intermediate)
+      : midpoint(state.intermediate, state.output);
+    return { stageIdx: sIdx, anchor, role: 'tensioner' };
+  }
+  return null;
+}
+
+function midpoint(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+
+// Sample belt length as a function of position along search direction.
+function sampleLengthAtPos(state, kind, beltIdx, candidate) {
+  const trial = JSON.parse(JSON.stringify(state));
+  if (kind === 'motor') trial.motor = candidate;
+  else if (kind === 'output') trial.output = candidate;
+  else if (kind === 'intermediate') trial.intermediate = candidate;
+  else if (kind === 'tensioner') {
+    trial[`stage${beltIdx}`].tensioner = candidate;
+  }
+  const calc = computeAll(trial);
+  // For 'output' in 2 stages we want stage 2; otherwise stage 1.
+  if (kind === 'output') {
+    const sIdx = state.stages === 1 ? 1 : 2;
+    return calc[`stage${sIdx}`].Lreal;
+  }
+  if (kind === 'motor' || kind === 'intermediate') return calc.stage1.Lreal;
+  return calc[`stage${beltIdx}`].Lreal;
+}
+
+// Find candidate position along ray from anchor through current position that
+// produces belt length closest to nearestStd. For shafts: vary distance from
+// anchor. For tensioner: vary perpendicular distance from belt centerline.
+function snapToStdLength(state, kind, beltIdx) {
+  const target = editTarget(kind, beltIdx, state);
+  if (!target) return null;
+  const cur = (kind === 'output') ? state.output
+            : kind === 'intermediate' ? state.intermediate
+            : state[`stage${beltIdx}`].tensioner;
+  if (!cur) return null;
+
+  const profile = BELT_PROFILES[state.beltProfile];
+  const curLen = sampleLengthAtPos(state, kind, beltIdx, cur);
+  const std = nearestStandard(curLen, profile.standardLengths).length;
+
+  // Search direction
+  let dirX, dirY, baseX, baseY;
+  if (target.role === 'shaft') {
+    const ax = target.anchor.x, ay = target.anchor.y;
+    let vx = cur.x - ax, vy = cur.y - ay;
+    let vlen = Math.hypot(vx, vy);
+    if (vlen < 1) { vx = 1; vy = 0; vlen = 1; }
+    dirX = vx / vlen; dirY = vy / vlen;
+    baseX = ax; baseY = ay;
+  } else {
+    // tensioner: perpendicular to belt centerline (anchor to anchor of stage)
+    const sIdx = beltIdx;
+    const p1 = sIdx === 1 ? state.motor : state.intermediate;
+    const p2 = sIdx === 1
+      ? (state.stages === 1 ? state.output : state.intermediate)
+      : state.output;
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const dl = Math.hypot(dx, dy) || 1;
+    let nx = -dy / dl, ny = dx / dl;
+    // Make perpendicular point toward current tensioner position
+    const along = (cur.x - target.anchor.x) * nx + (cur.y - target.anchor.y) * ny;
+    if (along < 0) { nx = -nx; ny = -ny; }
+    dirX = nx; dirY = ny;
+    baseX = target.anchor.x; baseY = target.anchor.y;
+  }
+
+  // Sweep scalar d from 5mm to 500mm in 200 steps, pick best
+  let bestPos = cur, bestErr = Math.abs(curLen - std);
+  for (let i = 1; i <= 200; i++) {
+    const d = 5 + (i / 200) * 495;
+    const px = baseX + dirX * d, py = baseY + dirY * d;
+    if (px < -SCENE_HALF_W || px > SCENE_HALF_W || py < -SCENE_HALF_H || py > SCENE_HALF_H) continue;
+    const L = sampleLengthAtPos(state, kind, beltIdx, { x: px, y: py });
+    const err = Math.abs(L - std);
+    if (err < bestErr) { bestErr = err; bestPos = { x: px, y: py }; }
+  }
+  return { pos: bestPos, std, err: bestErr };
+}
+
+function EditModal({ state, setState, calc, editing, setEditing, showToast }) {
+  const { kind, beltIdx, screenX, screenY } = editing;
+  const modalRef = useRef(null);
+  const xRef = useRef(null);
+  const yRef = useRef(null);
+
+  const getPos = () => {
+    if (kind === 'motor') return state.motor;
+    if (kind === 'output') return state.output;
+    if (kind === 'intermediate') return state.intermediate;
+    if (kind === 'tensioner') return state[`stage${beltIdx}`].tensioner;
+    return { x: 0, y: 0 };
+  };
+  const pos = getPos() || { x: 0, y: 0 };
+
+  // Input strings kept locally so user can type intermediate values
+  // ("-", "1.5e"…) without the controlled value snapping back.
+  const fmt = (n) => (Math.round(n * 100) / 100).toString();
+  const [xStr, setXStr] = useState(fmt(pos.x));
+  const [yStr, setYStr] = useState(fmt(pos.y));
+
+  // Sync local strings from external state (drag, snap, arrow keys),
+  // but only when the input isn't focused — otherwise typing flickers.
+  useEffect(() => {
+    if (document.activeElement !== xRef.current) setXStr(fmt(pos.x));
+    if (document.activeElement !== yRef.current) setYStr(fmt(pos.y));
+  }, [pos.x, pos.y]);
+
+  const apply = useCallback((nx, ny) => {
+    nx = clampScene(nx, 'x'); ny = clampScene(ny, 'y');
+    setState((s) => {
+      if (kind === 'motor')        return { ...s, motor:        { x: nx, y: ny } };
+      if (kind === 'output')       return { ...s, output:       { x: nx, y: ny } };
+      if (kind === 'intermediate') return { ...s, intermediate: { x: nx, y: ny } };
+      if (kind === 'tensioner') {
+        const key = `stage${beltIdx}`;
+        return { ...s, [key]: { ...s[key], tensioner: { x: nx, y: ny } } };
+      }
+      return s;
+    });
+  }, [kind, beltIdx, setState]);
+
+  const onXChange = (e) => {
+    const v = e.target.value;
+    setXStr(v);
+    const n = parseFloat(v);
+    if (Number.isFinite(n)) apply(n, pos.y);
+  };
+  const onYChange = (e) => {
+    const v = e.target.value;
+    setYStr(v);
+    const n = parseFloat(v);
+    if (Number.isFinite(n)) apply(pos.x, n);
+  };
+
+  const close = useCallback(() => setEditing(null), [setEditing]);
+
+  const onSnap = () => {
+    const result = snapToStdLength(state, kind, beltIdx);
+    if (!result) { showToast('Не удалось найти'); return; }
+    apply(result.pos.x, result.pos.y);
+    showToast(`L → ${result.std}mm (Δ${result.err.toFixed(2)})`);
+  };
+
+  // Reset tension: detach the idler from the belt. Direction depends on mode:
+  //   • EXT (inverted): idler is outside the loop → push FURTHER outward
+  //     along the perpendicular until it clears the belt.
+  //   • INT (auto): idler is inside the loop → pull TOWARD the centerline
+  //     (i.e., into the loop interior) so it no longer touches the tangent.
+  // Either way the belt straightens to the natural 2-pulley loop.
+  const onResetTension = () => {
+    if (kind !== 'tensioner') return;
+    const stConf = state[`stage${beltIdx}`];
+    const tR = stConf.tensionerDiameter / 2;
+    const pitch = BELT_PROFILES[state.beltProfile].pitch;
+    const r1 = pitchDiameter(stConf.drivingTeeth, pitch) / 2;
+    const r2 = pitchDiameter(stConf.drivenTeeth, pitch) / 2;
+    const shaftA = beltIdx === 1 ? state.motor : state.intermediate;
+    const shaftB = beltIdx === 1
+      ? (state.stages === 1 ? state.output : state.intermediate)
+      : state.output;
+    const dx = shaftB.x - shaftA.x, dy = shaftB.y - shaftA.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) { showToast('Не удалось'); return; }
+    const ux = dx / len, uy = dy / len;
+    const perpX = -uy, perpY = ux;
+    const tens = stConf.tensioner;
+    if (!tens) return;
+
+    // Project tensioner onto the centerline and keep its perpendicular side
+    const along = (tens.x - shaftA.x) * ux + (tens.y - shaftA.y) * uy;
+    const tProj = Math.max(0, Math.min(len, along));
+    const projX = shaftA.x + ux * tProj;
+    const projY = shaftA.y + uy * tProj;
+    const curPerp = (tens.x - shaftA.x) * perpX + (tens.y - shaftA.y) * perpY;
+    const sign = curPerp >= 0 ? 1 : -1;
+
+    // Belt's perpendicular extent at the projection point (linear interp
+    // of radii along the centerline for unequal pulleys).
+    const beltExt = r1 + (r2 - r1) * (tProj / len);
+    const isInverted = stConf.tensionerSide === 'inverted';
+    // Neutral position for "reset tension" → belt path equals natural:
+    //   EXT: tensioner sits tangent to the natural belt boundary (wrap=0)
+    //   INT: tensioner on the centerline (collinear → excluded from hull)
+    const targetPerp = isInverted ? (beltExt + tR) : 0;
+    const newX = clampScene(projX + perpX * sign * targetPerp, 'x');
+    const newY = clampScene(projY + perpY * sign * targetPerp, 'y');
+    setState((s) => ({
+      ...s,
+      [`stage${beltIdx}`]: { ...s[`stage${beltIdx}`], tensioner: { x: newX, y: newY } },
+    }));
+    showToast('Натяжение сброшено');
+  };
+
+  // Click anywhere outside the modal → close (current values are already applied)
+  useEffect(() => {
+    const onDocDown = (e) => {
+      if (modalRef.current && !modalRef.current.contains(e.target)) close();
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, [close]);
+
+  const title = kind === 'motor' ? 'Motor shaft'
+              : kind === 'output' ? 'Output shaft'
+              : kind === 'intermediate' ? 'Intermediate shaft'
+              : `Tensioner ${beltIdx}`;
+
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const modalW = 220, modalH = 140;
+  const left = Math.min(Math.max(screenX + 16, 8), vw - modalW - 8);
+  const top = Math.min(Math.max(screenY - 20, 8), vh - modalH - 8);
+
+  return html`
+    <div ref=${modalRef} class="edit-modal" style=${{ left: `${left}px`, top: `${top}px` }}>
+      <h4>${title}</h4>
+      <div class="row">
+        <label>X (mm)</label>
+        <input ref=${xRef} type="number" step="1" value=${xStr}
+          onChange=${onXChange}
+          onKeyDown=${(e) => e.key === 'Enter' && close()} />
+      </div>
+      <div class="row">
+        <label>Y (mm)</label>
+        <input ref=${yRef} type="number" step="1" value=${yStr}
+          onChange=${onYChange}
+          onKeyDown=${(e) => e.key === 'Enter' && close()} />
+      </div>
+      <div class="actions">
+        ${(() => {
+          // Motor is the chain root — moving the motor doesn't help fit a
+          // standard belt, so hide entirely. For other elements, disable
+          // when their stage's belt length is locked (snap is futile —
+          // enforceLocks would revert).
+          if (kind === 'motor') return null;
+          const elemStage = kind === 'tensioner' ? beltIdx
+                          : kind === 'intermediate' ? 1
+                          : (state.stages === 1 ? 1 : 2);
+          const stageLocked = elemStage && Number.isFinite(state[`stage${elemStage}`]?.lockL);
+          const tip = stageLocked
+            ? 'недоступно: длина ремня зафиксирована'
+            : '';
+          return html`
+            <button onClick=${onSnap}
+              disabled=${stageLocked}
+              title=${tip}
+              style=${{ whiteSpace: 'nowrap', lineHeight: '1.3' }}>
+              подогнать к ближайшему<br/>стандартному ремню
+            </button>
+          `;
+        })()}
+        ${kind === 'tensioner' && html`
+          <button onClick=${onResetTension}>сбросить натяжение</button>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// DISTANCE MODAL (edit center distance C between two shafts)
+// ============================================================
+
+function DistanceModal({ state, setState, calc, distEdit, setDistEdit, showToast }) {
+  const { stageIdx, screenX, screenY } = distEdit;
+  const modalRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Anchor = shaft that stays put; movable = the other end. Convention:
+  // for stage 1 we move the "far" end (output in 1-stage, intermediate in
+  // 2-stage). For stage 2 we move output.
+  const anchor = stageIdx === 1 ? state.motor : state.intermediate;
+  const movable = stageIdx === 1
+    ? (state.stages === 1 ? state.output : state.intermediate)
+    : state.output;
+  const movableKey = stageIdx === 1
+    ? (state.stages === 1 ? 'output' : 'intermediate')
+    : 'output';
+
+  const info = calc[`stage${stageIdx}`];
+  const C = info ? info.C : 0;
+
+  const fmt = (n) => (Math.round(n * 100) / 100).toString();
+  const [cStr, setCStr] = useState(fmt(C));
+
+  // Sync from external state when input not focused
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) setCStr(fmt(C));
+  }, [C]);
+
+  const applyC = useCallback((newC) => {
+    if (!Number.isFinite(newC) || newC < 1) return;
+    const dx = movable.x - anchor.x, dy = movable.y - anchor.y;
+    const oldC = Math.hypot(dx, dy);
+    if (oldC < 0.01) return;
+    const ratio = newC / oldC;
+    const nx = clampScene(anchor.x + dx * ratio, 'x');
+    const ny = clampScene(anchor.y + dy * ratio, 'y');
+    setState((s) => ({ ...s, [movableKey]: { x: nx, y: ny } }));
+  }, [anchor.x, anchor.y, movable.x, movable.y, movableKey, setState]);
+
+  const onCChange = (e) => {
+    const v = e.target.value;
+    setCStr(v);
+    const n = parseFloat(v);
+    if (Number.isFinite(n)) applyC(n);
+  };
+
+  const close = useCallback(() => setDistEdit(null), [setDistEdit]);
+
+  const onSnap = () => {
+    const profile = BELT_PROFILES[state.beltProfile];
+    const std = nearestStandard(info.Lreal, profile.standardLengths).length;
+    // Find C such that L matches std (along current direction).
+    // L is monotonic in C, bisect.
+    const dx = movable.x - anchor.x, dy = movable.y - anchor.y;
+    const oldC = Math.hypot(dx, dy);
+    if (oldC < 0.01) return;
+    const dirX = dx / oldC, dirY = dy / oldC;
+    const tryC = (cand) => {
+      const px = anchor.x + dirX * cand;
+      const py = anchor.y + dirY * cand;
+      return sampleLengthAtPos(state, movableKey, undefined, { x: px, y: py });
+    };
+    let lo = 5, hi = 500;
+    let bestC = oldC, bestErr = Math.abs(info.Lreal - std);
+    for (let i = 0; i < 200; i++) {
+      const cand = lo + (i / 199) * (hi - lo);
+      const L = tryC(cand);
+      const err = Math.abs(L - std);
+      if (err < bestErr) { bestErr = err; bestC = cand; }
+    }
+    applyC(bestC);
+    setCStr(fmt(bestC));
+    showToast(`L → ${std}mm (Δ${bestErr.toFixed(2)})`);
+  };
+
+  useEffect(() => {
+    const onDocDown = (e) => {
+      if (modalRef.current && !modalRef.current.contains(e.target)) close();
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, [close]);
+
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.focus();
+  }, []);
+
+  const title = state.stages === 1
+    ? 'Межосевое расстояние'
+    : `Межосевое C${stageIdx === 1 ? '₁' : '₂'}`;
+
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const modalW = 220, modalH = 130;
+  const left = Math.min(Math.max(screenX + 16, 8), vw - modalW - 8);
+  const top = Math.min(Math.max(screenY - 20, 8), vh - modalH - 8);
+
+  const stageLocked = Number.isFinite(state[`stage${stageIdx}`]?.lockL);
+  const lockTip = stageLocked
+    ? 'недоступно: длина ремня этой ступени зафиксирована (C определяется через L)'
+    : '';
+
+  return html`
+    <div ref=${modalRef} class="edit-modal" style=${{ left: `${left}px`, top: `${top}px` }}>
+      <h4>${title}</h4>
+      <div class="row">
+        <label>C (mm)</label>
+        <input ref=${inputRef} type="number" step="1" value=${cStr}
+          disabled=${stageLocked}
+          title=${lockTip}
+          onChange=${onCChange}
+          onKeyDown=${(e) => e.key === 'Enter' && close()} />
+      </div>
+      <div class="actions">
+        <button onClick=${onSnap}
+          disabled=${stageLocked}
+          title=${lockTip}
+          style=${{ whiteSpace: 'nowrap', lineHeight: '1.3' }}>
+          подогнать к ближайшему<br/>стандартному ремню
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// BELT LENGTH MODAL (edit belt length L; driven shaft slides along centerline)
+// ============================================================
+
+function BeltLengthModal({ state, setState, calc, lengthEdit, setLengthEdit, showToast }) {
+  const { stageIdx, screenX, screenY } = lengthEdit;
+  const modalRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Anchor stays put; movable end slides along the centerline. Same convention
+  // as DistanceModal.
+  const anchor = stageIdx === 1 ? state.motor : state.intermediate;
+  const movableKey = stageIdx === 1
+    ? (state.stages === 1 ? 'output' : 'intermediate')
+    : 'output';
+  const movable = state[movableKey];
+
+  const info = calc[`stage${stageIdx}`];
+  const L = info ? info.Lreal : 0;
+
+  const fmt = (n) => (Math.round(n * 10) / 10).toString();
+  const [lStr, setLStr] = useState(fmt(L));
+
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) setLStr(fmt(L));
+  }, [L]);
+
+  // Numerically solve for the C (distance along current direction) that
+  // produces target L. Works with or without a tensioner.
+  const solveCForL = useCallback((targetL) => {
+    const dx = movable.x - anchor.x, dy = movable.y - anchor.y;
+    const curC = Math.hypot(dx, dy);
+    if (curC < 0.01) return null;
+    const dirX = dx / curC, dirY = dy / curC;
+    const trial = JSON.parse(JSON.stringify(state));
+    let lo = 1, hi = 800;
+    let bestC = curC, bestErr = Infinity;
+    for (let i = 0; i <= 400; i++) {
+      const cand = lo + i * (hi - lo) / 400;
+      const px = anchor.x + dirX * cand;
+      const py = anchor.y + dirY * cand;
+      trial[movableKey] = { x: px, y: py };
+      const c = computeAll(trial);
+      const cur = c[`stage${stageIdx}`].Lreal;
+      const err = Math.abs(cur - targetL);
+      if (err < bestErr) { bestErr = err; bestC = cand; }
+    }
+    return { C: bestC, err: bestErr };
+  }, [state, stageIdx, anchor.x, anchor.y, movable.x, movable.y, movableKey]);
+
+  const applyL = useCallback((newL) => {
+    if (!Number.isFinite(newL) || newL < 10) return;
+    const sol = solveCForL(newL);
+    if (!sol) return;
+    const dx = movable.x - anchor.x, dy = movable.y - anchor.y;
+    const curC = Math.hypot(dx, dy);
+    if (curC < 0.01) return;
+    const ratio = sol.C / curC;
+    const nx = clampScene(anchor.x + dx * ratio, 'x');
+    const ny = clampScene(anchor.y + dy * ratio, 'y');
+    setState((s) => {
+      const next = { ...s, [movableKey]: { x: nx, y: ny } };
+      // If this stage is locked, also update the locked value so the live
+      // enforce-locks pass doesn't undo our change.
+      const sk = `stage${stageIdx}`;
+      if (Number.isFinite(s[sk].lockL)) {
+        next[sk] = { ...s[sk], lockL: newL };
+      }
+      return next;
+    });
+  }, [solveCForL, anchor.x, anchor.y, movable.x, movable.y, movableKey, stageIdx, setState]);
+
+  const isLocked = Number.isFinite(state[`stage${stageIdx}`].lockL);
+  const onLockToggle = (e) => {
+    const checked = e.target.checked;
+    setState((s) => ({
+      ...s,
+      [`stage${stageIdx}`]: {
+        ...s[`stage${stageIdx}`],
+        lockL: checked ? Math.round((s[`stage${stageIdx}`].lockL ?? L) * 10) / 10 : null,
+      },
+    }));
+  };
+
+  const onLChange = (e) => {
+    const v = e.target.value;
+    setLStr(v);
+    const n = parseFloat(v);
+    if (Number.isFinite(n)) applyL(n);
+  };
+
+  const close = useCallback(() => setLengthEdit(null), [setLengthEdit]);
+
+  const onSnap = () => {
+    const profile = BELT_PROFILES[state.beltProfile];
+    const std = nearestStandard(info.Lreal, profile.standardLengths).length;
+    applyL(std);
+    setLStr(fmt(std));
+    showToast(`L → ${std}mm`);
+  };
+
+  useEffect(() => {
+    const onDocDown = (e) => {
+      if (modalRef.current && !modalRef.current.contains(e.target)) close();
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, [close]);
+
+  useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+
+  const title = state.stages === 1
+    ? 'Длина ремня'
+    : `Длина ремня L${stageIdx === 1 ? '₁' : '₂'}`;
+
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const modalW = 240, modalH = 130;
+  const left = Math.min(Math.max(screenX + 16, 8), vw - modalW - 8);
+  const top = Math.min(Math.max(screenY - 20, 8), vh - modalH - 8);
+
+  // If lock is on but the enforced L can't reach the target (target is out
+  // of achievable range for current direction/teeth/tensioner), L drifts
+  // away from lockL. Highlight that mismatch.
+  const lockMismatch = isLocked && Math.abs(L - state[`stage${stageIdx}`].lockL) > 1;
+  const lockStyle = lockMismatch
+    ? { borderColor: 'var(--error)', color: 'var(--error)' }
+    : {};
+  return html`
+    <div ref=${modalRef} class="edit-modal" style=${{ left: `${left}px`, top: `${top}px` }}>
+      <h4>${title}</h4>
+      <div class="row">
+        <label>L (mm)</label>
+        <input ref=${inputRef} type="number" step="1" value=${lStr}
+          style=${lockStyle}
+          onChange=${onLChange}
+          onKeyDown=${(e) => e.key === 'Enter' && close()} />
+      </div>
+      <label class="checkbox-row" style=${{ padding: '4px 0' }}
+        title="длина зафиксирована, ведомый шкив подстраивается под изменения teeth/tensioner">
+        <input type="checkbox" checked=${isLocked} onChange=${onLockToggle} />
+        🔒 зафиксировать длину ремня
+      </label>
+      ${lockMismatch && html`
+        <div class="hint" style=${{ color: 'var(--error)' }}>
+          L = ${L.toFixed(1)} mm — заданное значение недостижимо при текущей геометрии
+        </div>
+      `}
+      <div class="actions">
+        <button onClick=${onSnap} style=${{ whiteSpace: 'nowrap', lineHeight: '1.3' }}>подогнать к ближайшему<br/>стандартному ремню</button>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// MOUNT
+// ============================================================
+
+createRoot(document.getElementById('root')).render(html`<${App} />`);
+</script>
+</body>
+</html>
