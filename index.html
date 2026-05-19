@@ -423,6 +423,106 @@
     border-radius: 3px;
   }
 
+  .toolbar .info-btn {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .about-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 20, 39, 0.88);
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .about-modal .content {
+    position: relative;
+    background: var(--bg-2);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 28px 32px 30px;
+    max-width: 520px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.6);
+    font-family: var(--mono);
+    color: var(--line);
+  }
+  .about-modal h2 {
+    color: var(--accent);
+    font-size: 17px;
+    letter-spacing: 2.5px;
+    margin: 0 0 6px;
+    font-weight: normal;
+  }
+  .about-modal .tagline {
+    color: var(--line-dim);
+    font-size: 11px;
+    line-height: 1.55;
+    margin-bottom: 8px;
+  }
+  .about-modal h3 {
+    color: var(--accent-2);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin: 20px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed var(--line-faint);
+    font-weight: normal;
+  }
+  .about-modal dl {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 4px 14px;
+    font-size: 12px;
+    margin: 0;
+  }
+  .about-modal dt {
+    color: var(--line-dim);
+  }
+  .about-modal dd {
+    color: var(--line);
+    margin: 0;
+  }
+  .about-modal a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .about-modal a:hover { text-decoration: underline; }
+  .about-modal ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+  .about-modal ul b {
+    color: var(--accent-2);
+    font-weight: normal;
+  }
+  .about-modal .close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    color: var(--line-dim);
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 8px;
+  }
+  .about-modal .close:hover { color: var(--accent); }
+
   /* Scrollbars */
   .panel::-webkit-scrollbar { width: 6px; }
   .panel::-webkit-scrollbar-track { background: var(--bg-2); }
@@ -1542,6 +1642,7 @@ function App() {
   const [mobileDismissed, setMobileDismissed] = useState(() => {
     try { return localStorage.getItem('beltCalc.mobileDismissed') === '1'; } catch { return false; }
   });
+  const [aboutOpen, setAboutOpen] = useState(false);
   useEffect(() => {
     const onResize = () => setNarrow(window.innerWidth < 880);
     window.addEventListener('resize', onResize);
@@ -1753,6 +1854,7 @@ function App() {
         </label>
         <span class="spacer"></span>
         <span class="toast ${toast ? 'show' : ''}">${toast}</span>
+        <button class="info-btn" onClick=${() => setAboutOpen(true)} title="About">?</button>
       </div>
       <div class="layout">
         <${ParameterPanel} state=${state} setState=${updateState} />
@@ -1783,6 +1885,7 @@ function App() {
         </div>
         <${ResultsPanel} state=${state} calc=${calc} />
       </div>
+      ${aboutOpen && html`<${AboutModal} onClose=${() => setAboutOpen(false)} />`}
       ${narrow && !mobileDismissed && html`
         <div class="mobile-banner">
           <h3>Belt Drive Planner</h3>
@@ -3511,6 +3614,62 @@ function BeltLengthModal({ state, setState, calc, lengthEdit, setLengthEdit, sho
       `}
       <div class="actions">
         <button onClick=${onSnap} style=${{ whiteSpace: 'nowrap', lineHeight: '1.3' }}>подогнать к ближайшему<br/>стандартному ремню</button>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// ABOUT MODAL
+// ============================================================
+
+function AboutModal({ onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const onBackdrop = (e) => { if (e.target === e.currentTarget) onClose(); };
+  return html`
+    <div class="about-modal" onClick=${onBackdrop}>
+      <div class="content">
+        <button class="close" onClick=${onClose} title="Esc">×</button>
+        <h2>BELT DRIVE PLANNER</h2>
+        <div class="tagline">
+          Интерактивный 2D-калькулятор ременной передачи для проектирования
+          моторизованных pan/tilt-голов. Профили GT2-2M, GT3-2M, HTD-3M, HTD-5M.
+        </div>
+
+        <h3>Авторство</h3>
+        <dl>
+          <dt>Concept & direction</dt><dd>Stanislav Volkov</dd>
+          <dt>Implementation</dt><dd>Claude Code · Anthropic</dd>
+        </dl>
+
+        <h3>Технически</h3>
+        <dl>
+          <dt>Source</dt>
+          <dd><a href="https://github.com/WolftheGrey/belt-calc" target="_blank" rel="noopener">github.com/WolftheGrey/belt-calc</a></dd>
+          <dt>License</dt><dd>MIT</dd>
+          <dt>Stack</dt><dd>React 18 + htm via esm.sh · SVG · Canvas · no build</dd>
+        </dl>
+
+        <h3>Жесты</h3>
+        <ul>
+          <li><b>Click</b> элемент — выделить (появляется XY-гизмо)</li>
+          <li><b>Drag</b> — переместить (Shift = по одной оси)</li>
+          <li><b>Wheel</b> — zoom; <b>ПКМ</b> / <b>Space</b>+drag / drag пустого холста — pan</li>
+          <li><b>Double-click</b> элемента — модалка X/Y</li>
+          <li><b>Double-click</b> бейджа длины — редактировать L (+ lock)</li>
+          <li><b>Double-click</b> цифры C — редактировать межосевое</li>
+          <li><b>←↑→↓</b> — нудж на 1мм (Shift ×10)</li>
+        </ul>
+
+        <h3>Натяжитель</h3>
+        <ul>
+          <li><b>INT</b> — convex hull, как 3-й шкив (зубчатой стороной)</li>
+          <li><b>EXT</b> — back-side, гладкая спинка ремня снаружи петли</li>
+        </ul>
       </div>
     </div>
   `;
