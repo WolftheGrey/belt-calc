@@ -1169,23 +1169,11 @@ function computeAll(state) {
       if (collinear) {
         belt = buildBelt([pulleyA, pulleyB]);
       } else if (st.tensionerSide === 'inverted') {
-        // EXT: the belt only touches the tensioner from its smooth back if
-        // the natural 2-pulley belt physically reaches the tensioner's
-        // perimeter. Once the idler's circle is fully outside the belt
-        // boundary it should detach — there's nothing pressing it inward.
-        const natural = buildBelt([pulleyA, pulleyB]);
-        const dToBelt = natural ? minDistFromPointToBelt(tCircle, natural) : Infinity;
-        if (dToBelt > tCircle.r + 0.5) {
-          belt = natural;
-        } else {
-          belt = buildBeltInverted(pulleyA, pulleyB, tCircle);
-          if (!belt) belt = buildBelt([pulleyA, pulleyB, tCircle]);
-          if (!belt) belt = buildBelt([pulleyA, pulleyB]);
-          tensionerAttached = !!belt && belt.arcs && belt.arcs.length === 3;
-        }
+        belt = buildBeltInverted(pulleyA, pulleyB, tCircle);
+        if (!belt) belt = buildBelt([pulleyA, pulleyB, tCircle]);
+        if (!belt) belt = buildBelt([pulleyA, pulleyB]);
+        tensionerAttached = !!belt && belt.arcs && belt.arcs.length === 3;
       } else {
-        // INT: convex hull always wraps the tensioner unless it's collinear
-        // with the pulleys (and the latter is handled above).
         belt = buildBelt([pulleyA, pulleyB, tCircle]);
         if (!belt) belt = buildBelt([pulleyA, pulleyB]);
         tensionerAttached = !!belt && belt.arcs && belt.arcs.length === 3;
