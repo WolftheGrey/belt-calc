@@ -220,6 +220,10 @@
     height: 100%;
     background: var(--bg);
     cursor: default;
+    /* Mobile: stop the browser from hijacking touch as scroll/pinch/dbl-tap
+       zoom — those gestures would fight our pointer handlers. */
+    touch-action: none;
+    -ms-touch-action: none;
   }
 
   .scene-svg.dragging { cursor: grabbing; }
@@ -374,6 +378,50 @@
     opacity: 0.6;
   }
   .edit-modal .hint { color: var(--line-dim); font-size: 10px; margin-top: 4px; }
+
+  .mobile-banner {
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 40, 71, 0.97);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    text-align: center;
+  }
+  .mobile-banner h3 {
+    color: var(--accent);
+    font-size: 16px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .mobile-banner p {
+    color: var(--line);
+    font-size: 13px;
+    max-width: 340px;
+    margin-bottom: 18px;
+    line-height: 1.55;
+  }
+  .mobile-banner .hint {
+    color: var(--line-dim);
+    font-size: 11px;
+    max-width: 340px;
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+  .mobile-banner button {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 8px 18px;
+    font-size: 12px;
+    font-family: var(--mono);
+    cursor: pointer;
+    border-radius: 3px;
+  }
 
   /* Scrollbars */
   .panel::-webkit-scrollbar { width: 6px; }
@@ -1350,7 +1398,15 @@ function applyLockForStage(state, stageIdx, lockL) {
   if (curC < 0.5) return state;            // direction undefined
   const dirX = dx / curC, dirY = dy / curC;
 
-  // Bisect over C ∈ [1, 800]. L grows monotonically with C for a fixed
+  // Minimum allowed C — keep the two pulleys from overlapping each other
+  // (and avoid the geometrically-degenerate range below |r1 - r2|).
+  const profile = BELT_PROFILES[state.beltProfile];
+  const stConf = state[`stage${stageIdx}`];
+  const r1 = outerDiameter(stConf.drivingTeeth, profile.pitch) / 2;
+  const r2 = outerDiameter(stConf.drivenTeeth, profile.pitch) / 2;
+  const cMin = r1 + r2 + 1;
+
+  // Bisect over C ∈ [cMin, 800]. L grows monotonically with C for a fixed
   // direction (tensioner edge cases may break monotonicity slightly but
   // bisection still lands in the right neighborhood).
   const trial = JSON.parse(JSON.stringify(state));
@@ -1358,8 +1414,7 @@ function applyLockForStage(state, stageIdx, lockL) {
     trial[movableKey] = { x: anchor.x + dirX * cand, y: anchor.y + dirY * cand };
     return computeAll(trial)[`stage${stageIdx}`].Lreal;
   };
-  let lo = 1, hi = 800, mid = curC, lAtMid = 0;
-  // Check if lockL is achievable in the range
+  let lo = cMin, hi = 800, mid = curC, lAtMid = 0;
   const lLo = computeL(lo), lHi = computeL(hi);
   if (lockL < lLo - 5 || lockL > lHi + 5) return state; // impossible — bail out
   for (let i = 0; i < 26; i++) {
@@ -1412,6 +1467,21 @@ function App() {
   const [distEdit, setDistEdit] = useState(null); // { stageIdx, screenX, screenY }
   const [lengthEdit, setLengthEdit] = useState(null); // { stageIdx, screenX, screenY }
   const [selected, setSelected] = useState(null); // { kind, beltIdx? }
+  // Mobile / narrow-screen detection. Layout needs ~900px to be usable;
+  // below that the panels eat the scene. Banner can be dismissed.
+  const [narrow, setNarrow] = useState(() => window.innerWidth < 880);
+  const [mobileDismissed, setMobileDismissed] = useState(() => {
+    try { return localStorage.getItem('beltCalc.mobileDismissed') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < 880);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const dismissMobile = () => {
+    setMobileDismissed(true);
+    try { localStorage.setItem('beltCalc.mobileDismissed', '1'); } catch {}
+  };
 
   // Persist to localStorage + URL on every change
   useEffect(() => {
@@ -1644,6 +1714,21 @@ function App() {
         </div>
         <${ResultsPanel} state=${state} calc=${calc} />
       </div>
+      ${narrow && !mobileDismissed && html`
+        <div class="mobile-banner">
+          <h3>Десктопный инструмент</h3>
+          <p>
+            Это калькулятор спроектирован для широких экранов с мышкой/тачпадом.
+            На мобильном много панелей и мелких контролов, всё сжимается до неюзабельного.
+          </p>
+          <p class="hint">
+            В Chrome на телефоне есть пункт меню <b>«Версия для ПК»</b> /
+            <b>«Desktop site»</b> — он выдаёт ширину ~980px и интерфейс становится рабочим.
+            Идеально — открыть на десктопе или планшете в горизонтальной ориентации.
+          </p>
+          <button onClick=${dismissMobile}>Открыть всё равно</button>
+        </div>
+      `}
     <//>
   `;
 }
@@ -2813,11 +2898,13 @@ function sampleLengthAtPos(state, kind, beltIdx, candidate) {
 // Find candidate position along ray from anchor through current position that
 // produces belt length closest to nearestStd. For shafts: vary distance from
 // anchor. For tensioner: vary perpendicular distance from belt centerline.
+// Skips candidates that would cause pulley/tensioner overlap.
 function snapToStdLength(state, kind, beltIdx) {
   const target = editTarget(kind, beltIdx, state);
   if (!target) return null;
   const cur = (kind === 'output') ? state.output
             : kind === 'intermediate' ? state.intermediate
+            : kind === 'motor' ? state.motor
             : state[`stage${beltIdx}`].tensioner;
   if (!cur) return null;
 
@@ -2825,8 +2912,20 @@ function snapToStdLength(state, kind, beltIdx) {
   const curLen = sampleLengthAtPos(state, kind, beltIdx, cur);
   const std = nearestStandard(curLen, profile.standardLengths).length;
 
+  // Pulley radii for the stage(s) this element belongs to — used to enforce
+  // non-overlap during the search.
+  const pitch = profile.pitch;
+  const stIdx = (kind === 'tensioner' || kind === 'motor' || kind === 'intermediate')
+    ? (kind === 'tensioner' ? beltIdx : 1)
+    : (state.stages === 1 ? 1 : 2);
+  const stConf = state[`stage${stIdx}`];
+  const stageR1 = outerDiameter(stConf.drivingTeeth, pitch) / 2;
+  const stageR2 = outerDiameter(stConf.drivenTeeth, pitch) / 2;
+  const clearance = 1;
+
   // Search direction
   let dirX, dirY, baseX, baseY;
+  let minDist = 5;
   if (target.role === 'shaft') {
     const ax = target.anchor.x, ay = target.anchor.y;
     let vx = cur.x - ax, vy = cur.y - ay;
@@ -2834,6 +2933,8 @@ function snapToStdLength(state, kind, beltIdx) {
     if (vlen < 1) { vx = 1; vy = 0; vlen = 1; }
     dirX = vx / vlen; dirY = vy / vlen;
     baseX = ax; baseY = ay;
+    // For shaft moves: keep pulleys from overlapping.
+    minDist = Math.max(5, stageR1 + stageR2 + clearance);
   } else {
     // tensioner: perpendicular to belt centerline (anchor to anchor of stage)
     const sIdx = beltIdx;
@@ -2844,19 +2945,33 @@ function snapToStdLength(state, kind, beltIdx) {
     const dx = p2.x - p1.x, dy = p2.y - p1.y;
     const dl = Math.hypot(dx, dy) || 1;
     let nx = -dy / dl, ny = dx / dl;
-    // Make perpendicular point toward current tensioner position
     const along = (cur.x - target.anchor.x) * nx + (cur.y - target.anchor.y) * ny;
     if (along < 0) { nx = -nx; ny = -ny; }
     dirX = nx; dirY = ny;
     baseX = target.anchor.x; baseY = target.anchor.y;
   }
 
-  // Sweep scalar d from 5mm to 500mm in 200 steps, pick best
+  // For tensioner candidates we need to test distance to BOTH pulleys.
+  const tR = (kind === 'tensioner') ? (stConf.tensionerDiameter / 2) : 0;
+  const tensShaftA = kind === 'tensioner'
+    ? (beltIdx === 1 ? state.motor : state.intermediate) : null;
+  const tensShaftB = kind === 'tensioner'
+    ? (beltIdx === 1
+        ? (state.stages === 1 ? state.output : state.intermediate)
+        : state.output)
+    : null;
+
   let bestPos = cur, bestErr = Math.abs(curLen - std);
   for (let i = 1; i <= 200; i++) {
-    const d = 5 + (i / 200) * 495;
+    const d = minDist + (i / 200) * (500 - minDist);
     const px = baseX + dirX * d, py = baseY + dirY * d;
     if (px < -SCENE_HALF_W || px > SCENE_HALF_W || py < -SCENE_HALF_H || py > SCENE_HALF_H) continue;
+    // Reject tensioner positions that would overlap a pulley.
+    if (kind === 'tensioner') {
+      const dA = Math.hypot(px - tensShaftA.x, py - tensShaftA.y);
+      const dB = Math.hypot(px - tensShaftB.x, py - tensShaftB.y);
+      if (dA < stageR1 + tR + clearance || dB < stageR2 + tR + clearance) continue;
+    }
     const L = sampleLengthAtPos(state, kind, beltIdx, { x: px, y: py });
     const err = Math.abs(L - std);
     if (err < bestErr) { bestErr = err; bestPos = { x: px, y: py }; }
@@ -3097,8 +3212,6 @@ function DistanceModal({ state, setState, calc, distEdit, setDistEdit, showToast
   const onSnap = () => {
     const profile = BELT_PROFILES[state.beltProfile];
     const std = nearestStandard(info.Lreal, profile.standardLengths).length;
-    // Find C such that L matches std (along current direction).
-    // L is monotonic in C, bisect.
     const dx = movable.x - anchor.x, dy = movable.y - anchor.y;
     const oldC = Math.hypot(dx, dy);
     if (oldC < 0.01) return;
@@ -3108,7 +3221,11 @@ function DistanceModal({ state, setState, calc, distEdit, setDistEdit, showToast
       const py = anchor.y + dirY * cand;
       return sampleLengthAtPos(state, movableKey, undefined, { x: px, y: py });
     };
-    let lo = 5, hi = 500;
+    // Lower bound: keep pulleys from overlapping.
+    const stConf = state[`stage${stageIdx}`];
+    const r1 = outerDiameter(stConf.drivingTeeth, profile.pitch) / 2;
+    const r2 = outerDiameter(stConf.drivenTeeth, profile.pitch) / 2;
+    const lo = r1 + r2 + 1, hi = 500;
     let bestC = oldC, bestErr = Math.abs(info.Lreal - std);
     for (let i = 0; i < 200; i++) {
       const cand = lo + (i / 199) * (hi - lo);
@@ -3198,14 +3315,19 @@ function BeltLengthModal({ state, setState, calc, lengthEdit, setLengthEdit, sho
   }, [L]);
 
   // Numerically solve for the C (distance along current direction) that
-  // produces target L. Works with or without a tensioner.
+  // produces target L. Works with or without a tensioner. Lower bound = min
+  // non-overlapping center distance for the pulleys in this stage.
   const solveCForL = useCallback((targetL) => {
     const dx = movable.x - anchor.x, dy = movable.y - anchor.y;
     const curC = Math.hypot(dx, dy);
     if (curC < 0.01) return null;
     const dirX = dx / curC, dirY = dy / curC;
     const trial = JSON.parse(JSON.stringify(state));
-    let lo = 1, hi = 800;
+    const profile = BELT_PROFILES[state.beltProfile];
+    const stConf = state[`stage${stageIdx}`];
+    const r1 = outerDiameter(stConf.drivingTeeth, profile.pitch) / 2;
+    const r2 = outerDiameter(stConf.drivenTeeth, profile.pitch) / 2;
+    const lo = r1 + r2 + 1, hi = 800;
     let bestC = curC, bestErr = Infinity;
     for (let i = 0; i <= 400; i++) {
       const cand = lo + i * (hi - lo) / 400;
