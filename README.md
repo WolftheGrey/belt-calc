@@ -171,4 +171,4 @@ App
 
 ## Лицензия
 
-Apache License 2.0 — см. [LICENSE](LICENSE).
+MIT — см. [LICENSE](LICENSE).
