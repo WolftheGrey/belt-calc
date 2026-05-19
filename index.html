@@ -1266,18 +1266,87 @@ function drawExportTable(ctx, x, y, w, state, calc) {
   return cy;
 }
 
+// Bbox of the actual belt-drive content (pulleys + tensioners + badge text
+// areas + label allowance). Used by exportPng to auto-fit the export.
+function exportContentBbox(state, calc) {
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  const inc = (x, y, r) => {
+    xmin = Math.min(xmin, x - r); xmax = Math.max(xmax, x + r);
+    ymin = Math.min(ymin, y - r); ymax = Math.max(ymax, y + r);
+  };
+  // Pulleys at outer radius (what's actually drawn).
+  inc(state.motor.x, state.motor.y, calc.stage1.r1);
+  if (state.stages === 1) {
+    inc(state.output.x, state.output.y, calc.stage1.r2);
+  } else {
+    inc(state.intermediate.x, state.intermediate.y, Math.max(calc.stage1.r2, calc.stage2.r1));
+    inc(state.output.x, state.output.y, calc.stage2.r2);
+  }
+  if (state.stage1.tensioner) {
+    inc(state.stage1.tensioner.x, state.stage1.tensioner.y, state.stage1.tensionerDiameter / 2);
+  }
+  if (state.stages === 2 && state.stage2.tensioner) {
+    inc(state.stage2.tensioner.x, state.stage2.tensioner.y, state.stage2.tensionerDiameter / 2);
+  }
+  // Belt badges sit perpendicular from each stage's centerline midpoint at
+  // (extent + 5)mm offset, where extent = farthest belt-circle projection.
+  // Account for badge text height (~8mm) so it isn't clipped.
+  const expandForBadge = (a, b, info) => {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const perp = uy >= 0 ? { x: uy, y: -ux } : { x: -uy, y: ux };
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    let extent = Math.max(info.r1, info.r2);
+    if (info.belt && info.belt.arcs) {
+      for (const arc of info.belt.arcs) {
+        const projC = (arc.center.x - mx) * perp.x + (arc.center.y - my) * perp.y;
+        const e = projC + arc.radius;
+        if (e > extent) extent = e;
+      }
+    }
+    const off = extent + 5;
+    inc(mx + perp.x * off, my + perp.y * off, 9);
+  };
+  expandForBadge(state.motor, state.stages === 1 ? state.output : state.intermediate, calc.stage1);
+  if (state.stages === 2) expandForBadge(state.intermediate, state.output, calc.stage2);
+  // Shaft labels above (~6mm) and coord lines below (~7mm) — slightly more on Y.
+  xmin -= 7; xmax += 7; ymin -= 8; ymax += 9;
+  return { x: xmin, y: ymin, w: xmax - xmin, h: ymax - ymin };
+}
+
 async function exportPng(state, calc) {
   const svgEl = document.querySelector('.scene-svg');
   if (!svgEl) throw new Error('SVG not found');
 
   const SVG_WIDTH = 1200;
-  const vb = svgEl.viewBox.baseVal;
-  const SVG_HEIGHT = Math.max(600, Math.round(SVG_WIDTH * vb.height / vb.width));
+  const SVG_HEIGHT = 900;            // fixed 4:3 export canvas
   const TABLE_WIDTH = 460;
+  const PADDING_MM = 25;             // 2.5cm clear margin around content
+
+  // Auto-fit viewBox to actual content + padding, then match canvas aspect.
+  const bbox = exportContentBbox(state, calc);
+  let nx = bbox.x - PADDING_MM;
+  let ny = bbox.y - PADDING_MM;
+  let nw = bbox.w + PADDING_MM * 2;
+  let nh = bbox.h + PADDING_MM * 2;
+  const canvasAspect = SVG_WIDTH / SVG_HEIGHT;
+  const contentAspect = nw / nh;
+  if (contentAspect > canvasAspect) {
+    // content is wider than canvas → expand height symmetrically
+    const newH = nw / canvasAspect;
+    ny -= (newH - nh) / 2;
+    nh = newH;
+  } else {
+    const newW = nh * canvasAspect;
+    nx -= (newW - nw) / 2;
+    nw = newW;
+  }
 
   // Clone SVG and resolve CSS custom properties (they wouldn't resolve when
   // the SVG is loaded as an <img>, since the image's CSS context is empty).
   const svgClone = svgEl.cloneNode(true);
+  svgClone.setAttribute('viewBox', `${nx} ${ny} ${nw} ${nh}`);
   svgClone.setAttribute('width', SVG_WIDTH);
   svgClone.setAttribute('height', SVG_HEIGHT);
   svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
