@@ -408,9 +408,9 @@
   .mobile-banner .hint {
     color: var(--line-dim);
     font-size: 11px;
-    max-width: 340px;
-    margin-bottom: 14px;
-    line-height: 1.5;
+    max-width: 320px;
+    margin-top: 18px;
+    line-height: 1.55;
   }
   .mobile-banner button {
     background: transparent;
@@ -1785,17 +1785,14 @@ function App() {
       </div>
       ${narrow && !mobileDismissed && html`
         <div class="mobile-banner">
-          <h3>Десктопный инструмент</h3>
-          <p>
-            Это калькулятор спроектирован для широких экранов с мышкой/тачпадом.
-            На мобильном много панелей и мелких контролов, всё сжимается до неюзабельного.
-          </p>
-          <p class="hint">
-            В Chrome на телефоне есть пункт меню <b>«Версия для ПК»</b> /
-            <b>«Desktop site»</b> — он выдаёт ширину ~980px и интерфейс становится рабочим.
-            Идеально — открыть на десктопе или планшете в горизонтальной ориентации.
-          </p>
+          <h3>Belt Drive Planner</h3>
           <button onClick=${dismissMobile}>Открыть всё равно</button>
+          <p class="hint">
+            В Chrome на телефоне → меню → <b>«Версия для ПК»</b> /
+            <b>«Desktop site»</b> — даёт ~980px viewport и интерфейс
+            становится рабочим. Идеально — открыть на десктопе или
+            планшете в горизонтальной ориентации.
+          </p>
         </div>
       `}
     <//>
