@@ -1169,10 +1169,22 @@ function computeAll(state) {
       if (collinear) {
         belt = buildBelt([pulleyA, pulleyB]);
       } else if (st.tensionerSide === 'inverted') {
-        belt = buildBeltInverted(pulleyA, pulleyB, tCircle);
-        if (!belt) belt = buildBelt([pulleyA, pulleyB, tCircle]);
-        if (!belt) belt = buildBelt([pulleyA, pulleyB]);
-        tensionerAttached = !!belt && belt.arcs && belt.arcs.length === 3;
+        // EXT: back-side wrap is a PHYSICAL contact between the belt's
+        // outer surface and the idler. If the idler's circle is fully
+        // clear of the natural 2-pulley belt boundary, nothing is
+        // pressing the belt into it — detach, straighten the belt.
+        // (INT remains as convex-hull-with-3rd-pulley regardless of
+        // distance, which is the expected geometric behavior.)
+        const natural = buildBelt([pulleyA, pulleyB]);
+        const dToBelt = natural ? minDistFromPointToBelt(tCircle, natural) : Infinity;
+        if (dToBelt > tCircle.r + 0.5) {
+          belt = natural;
+        } else {
+          belt = buildBeltInverted(pulleyA, pulleyB, tCircle);
+          if (!belt) belt = buildBelt([pulleyA, pulleyB, tCircle]);
+          if (!belt) belt = buildBelt([pulleyA, pulleyB]);
+          tensionerAttached = !!belt && belt.arcs && belt.arcs.length === 3;
+        }
       } else {
         belt = buildBelt([pulleyA, pulleyB, tCircle]);
         if (!belt) belt = buildBelt([pulleyA, pulleyB]);
