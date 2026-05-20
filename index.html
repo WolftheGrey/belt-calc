@@ -1211,10 +1211,16 @@ function computeAll(state) {
         if (dToBelt > tCircle.r + 0.5) {
           belt = natural;
         } else {
-          belt = buildBeltInverted(pulleyA, pulleyB, tCircle);
-          if (!belt) belt = buildBelt([pulleyA, pulleyB, tCircle]);
-          if (!belt) belt = buildBelt([pulleyA, pulleyB]);
-          tensionerAttached = !!belt && belt.arcs && belt.arcs.length === 3;
+          const inverted = buildBeltInverted(pulleyA, pulleyB, tCircle);
+          if (inverted) {
+            belt = inverted;
+            tensionerAttached = !!belt.arcs && belt.arcs.length === 3;
+          } else {
+            // EXT geometry failed for this configuration. DO NOT fall back
+            // to the convex hull — that would suddenly behave like INT and
+            // confuse the user. Just detach.
+            belt = natural;
+          }
         }
       } else {
         belt = buildBelt([pulleyA, pulleyB, tCircle]);
