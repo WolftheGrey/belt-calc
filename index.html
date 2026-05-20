@@ -1105,15 +1105,21 @@ function decodeState(s) {
 function loadInitialState() {
   const url = new URL(location.href);
   const fromUrl = url.searchParams.get('s');
+  let s = null;
   if (fromUrl) {
     const decoded = decodeState(fromUrl);
-    if (decoded) return mergeDefaults(decoded);
+    if (decoded) s = mergeDefaults(decoded);
   }
-  try {
-    const raw = localStorage.getItem('beltCalc.state');
-    if (raw) return mergeDefaults(JSON.parse(raw));
-  } catch {}
-  return DEFAULT_STATE;
+  if (!s) {
+    try {
+      const raw = localStorage.getItem('beltCalc.state');
+      if (raw) s = mergeDefaults(JSON.parse(raw));
+    } catch {}
+  }
+  if (!s) s = DEFAULT_STATE;
+  // Snap any saved state into a lock-consistent configuration on load —
+  // otherwise a URL captured mid-edit could open with stale shaft positions.
+  return enforceLocks(s);
 }
 
 function mergeDefaults(s) {
