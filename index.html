@@ -531,7 +531,32 @@
 </style>
 </head>
 <body>
-<div id="root"></div>
+<noscript>
+  <div style="padding:24px;color:#e0f4ff;background:#0d2847;font-family:Menlo,monospace;line-height:1.5;">
+    <h2 style="color:#ffd66e;font-weight:normal;letter-spacing:1.5px;">BELT DRIVE PLANNER</h2>
+    <p>This tool requires JavaScript and ES modules. Please enable JavaScript and reload, or open in a modern browser:</p>
+    <ul>
+      <li>Chrome / Edge 79+</li>
+      <li>Firefox 60+</li>
+      <li>Safari 13+ (iOS Safari 13+)</li>
+    </ul>
+  </div>
+</noscript>
+<div id="root">
+  <div style="padding:24px;color:#9eb;background:#0d2847;font-family:Menlo,monospace;line-height:1.5;min-height:100vh;">
+    <p>Loading…</p>
+    <p style="color:#888;font-size:12px;">If this message stays, your browser may be too old or unable to load ES modules from esm.sh. Try Chrome / Firefox / Safari current version.</p>
+  </div>
+</div>
+<script nomodule>
+  // Browsers that don't support ES modules will execute this fallback and
+  // skip the <script type="module"> block below entirely.
+  document.getElementById('root').innerHTML =
+    '<div style="padding:24px;color:#ff6b6b;background:#0d2847;font-family:Menlo,monospace;line-height:1.5;min-height:100vh;">'
+    + '<h2 style="color:#ffd66e;font-weight:normal;letter-spacing:1.5px;">Browser too old</h2>'
+    + '<p>This tool requires ES module support. Please use Chrome / Edge 79+, Firefox 60+, or Safari 13+.</p>'
+    + '</div>';
+</script>
 <script type="module">
 /* ============================================================================
  * BELT DRIVE PLANNER
@@ -1317,18 +1342,18 @@ function drawExportTable(ctx, x, y, w, state, calc) {
 
   const f1 = (n) => n.toFixed(1);
 
-  section('ТОПОЛОГИЯ');
-  row('Профиль', state.beltProfile);
-  row('Ступеней', String(state.stages));
+  section('TOPOLOGY');
+  row('Profile', state.beltProfile);
+  row('Stages', String(state.stages));
 
-  section('ОСИ');
+  section('SHAFTS');
   row('Motor', `${f1(state.motor.x)}, ${f1(state.motor.y)}`);
   if (state.stages === 2) {
     row('Intermediate', `${f1(state.intermediate.x)}, ${f1(state.intermediate.y)}`);
   }
   row('Output', `${f1(state.output.x)}, ${f1(state.output.y)}`);
 
-  section('ШКИВЫ');
+  section('PULLEYS');
   row('Stage 1 driving', `T=${state.stage1.drivingTeeth} · ⌀${f1(calc.stage1.D1)}`);
   row('Stage 1 driven',  `T=${state.stage1.drivenTeeth} · ⌀${f1(calc.stage1.D2)}`);
   if (state.stages === 2) {
@@ -1338,7 +1363,7 @@ function drawExportTable(ctx, x, y, w, state, calc) {
 
   const hasT = state.stage1.tensioner || (state.stages === 2 && state.stage2.tensioner);
   if (hasT) {
-    section('НАТЯЖИТЕЛИ');
+    section('TENSIONERS');
     if (state.stage1.tensioner) {
       const t = state.stage1.tensioner;
       const side = state.stage1.tensionerSide === 'inverted' ? 'EXT' : 'INT';
@@ -1352,8 +1377,8 @@ function drawExportTable(ctx, x, y, w, state, calc) {
   }
 
   const beltSec = (idx, info) => {
-    section(state.stages === 1 ? 'РЕМЕНЬ' : `РЕМЕНЬ ${idx}`);
-    row('C (между осями)', `${f1(info.C)} mm`);
+    section(state.stages === 1 ? 'BELT' : `BELT ${idx}`);
+    row('C (center distance)', `${f1(info.C)} mm`);
     row('L actual', `${f1(info.Lreal)} mm`);
     if (Number.isFinite(info.lockL)) {
       row('L locked', `🔒 ${f1(info.lockL)} mm`);
@@ -1369,7 +1394,7 @@ function drawExportTable(ctx, x, y, w, state, calc) {
   beltSec(1, calc.stage1);
   if (state.stages === 2) beltSec(2, calc.stage2);
 
-  section('ИТОГО');
+  section('TOTAL');
   row('Reduction', `1:${calc.totalReduction.toFixed(3)}`);
   row('Bounding box', `${calc.bbox.w.toFixed(0)} × ${calc.bbox.h.toFixed(0)} mm`);
   row('Per microstep', `${calc.arcsecPerMicrostep.toFixed(2)}″`);
@@ -1800,27 +1825,27 @@ function App() {
   }, []);
 
   const onReset = () => {
-    if (confirm('Сбросить к настройкам по умолчанию?')) {
+    if (confirm('Reset to defaults?')) {
       setState(DEFAULT_STATE);
-      showToast('Сброшено');
+      showToast('Reset');
     }
   };
 
   const onCopyUrl = async () => {
     try {
       await navigator.clipboard.writeText(location.href);
-      showToast('Ссылка скопирована');
+      showToast('URL copied');
     } catch {
-      showToast('Не удалось скопировать');
+      showToast('Copy failed');
     }
   };
 
   const onCopyJson = async () => {
     try {
       await navigator.clipboard.writeText(JSON.stringify(state, null, 2));
-      showToast('JSON скопирован');
+      showToast('JSON copied');
     } catch {
-      showToast('Не удалось скопировать');
+      showToast('Copy failed');
     }
   };
 
@@ -1837,16 +1862,16 @@ function App() {
     a.download = 'belt-drive.svg';
     a.click();
     URL.revokeObjectURL(a.href);
-    showToast('SVG сохранён');
+    showToast('SVG saved');
   };
 
   const onExportPng = async () => {
     try {
       await exportPng(state, calc);
-      showToast('PNG сохранён');
+      showToast('PNG saved');
     } catch (e) {
       console.error(e);
-      showToast('Не удалось');
+      showToast('Failed');
     }
   };
 
@@ -1902,15 +1927,14 @@ function App() {
         <div class="mobile-banner">
           <h3>Belt Drive Planner</h3>
           <p>
-            Инструмент спроектирован для больших экранов и не приспособлен
-            для работы на телефоне.
+            This tool is designed for large screens and isn't really usable
+            on a phone.
           </p>
-          <button onClick=${dismissMobile}>Открыть всё равно</button>
+          <button onClick=${dismissMobile}>Open anyway</button>
           <p class="hint">
-            В Chrome на телефоне → меню → <b>«Версия для ПК»</b> /
-            <b>«Desktop site»</b> — даёт ~980px viewport и интерфейс
-            становится рабочим. Идеально — открыть на десктопе или
-            планшете в горизонтальной ориентации.
+            Chrome on mobile → menu → <b>"Desktop site"</b> — gives a
+            ~980px viewport and the UI becomes workable. Best to open on a
+            desktop or a tablet in landscape orientation.
           </p>
         </div>
       `}
@@ -1942,14 +1966,14 @@ function ParameterPanel({ state, setState }) {
   const stageBlock = (idx) => {
     const st = state[`stage${idx}`];
     const label = state.stages === 1
-      ? 'Ступень'
-      : `Ступень ${idx}`;
+      ? 'Stage'
+      : `Stage ${idx}`;
     const drivingLabel = state.stages === 1
-      ? 'Шкив на моторе (T)'
-      : (idx === 1 ? 'Шкив на моторе (T)' : 'Шкив на intermediate (T)');
+      ? 'Motor pulley (T)'
+      : (idx === 1 ? 'Motor pulley (T)' : 'Intermediate pulley (T)');
     const drivenLabel = state.stages === 1
-      ? 'Шкив на выходе (T)'
-      : (idx === 1 ? 'Шкив на intermediate (T)' : 'Шкив на выходе (T)');
+      ? 'Output pulley (T)'
+      : (idx === 1 ? 'Intermediate pulley (T)' : 'Output pulley (T)');
     return html`
       <div class="stage-block stage${idx}" key=${idx}>
         <div class="stage-title">${label}</div>
@@ -1966,16 +1990,16 @@ function ParameterPanel({ state, setState }) {
         <div class="checkbox-row">
           <input type="checkbox" id="tens${idx}" checked=${!!st.tensioner}
             onChange=${() => toggleTensioner(idx)} />
-          <label for="tens${idx}">Натяжитель</label>
+          <label for="tens${idx}">Tensioner</label>
         </div>
         ${st.tensioner && html`
           <div class="field">
-            <label>Диаметр натяжителя</label>
+            <label>Tensioner diameter</label>
             <input type="number" min="6" max="60" step="1" value=${st.tensionerDiameter}
               onChange=${(e) => updStage(idx, { tensionerDiameter: clampInt(e.target.value, 6, 60, st.tensionerDiameter) })} />
           </div>
           <div class="field">
-            <label>Сторона ремня</label>
+            <label>Belt side</label>
             <select value=${st.tensionerSide || 'auto'}
               onChange=${(e) => {
                 const newSide = e.target.value;
@@ -1992,13 +2016,13 @@ function ParameterPanel({ state, setState }) {
                   return { ...s, [k]: next };
                 });
               }}>
-              <option value="auto">INT — изнутри (convex)</option>
-              <option value="inverted">EXT — снаружи (back-side)</option>
+              <option value="auto">INT — inside (convex)</option>
+              <option value="inverted">EXT — outside (back-side)</option>
             </select>
           </div>
           <div class="help">
-            INT: ремень огибает натяжитель зубчатой стороной, как 3-й шкив.<br/>
-            EXT: натяжитель снаружи петли, давит на гладкую спинку ремня внутрь.
+            INT: belt wraps the tensioner with its toothed side, like a 3rd pulley.<br/>
+            EXT: tensioner outside the loop, presses the belt's smooth back inward.
           </div>
         `}
       </div>
@@ -2007,56 +2031,56 @@ function ParameterPanel({ state, setState }) {
 
   return html`
     <div class="panel">
-      <h2>Параметры</h2>
+      <h2>Parameters</h2>
 
-      <h3>Топология</h3>
+      <h3>Topology</h3>
       <div class="radio-row">
         <label><input type="radio" name="stages" checked=${state.stages === 1}
-          onChange=${() => upd({ stages: 1 })} /> 1 ступень</label>
+          onChange=${() => upd({ stages: 1 })} /> 1 stage</label>
         <label><input type="radio" name="stages" checked=${state.stages === 2}
-          onChange=${() => upd({ stages: 2 })} /> 2 ступени</label>
+          onChange=${() => upd({ stages: 2 })} /> 2 stages</label>
       </div>
 
       <div class="field">
-        <label>Профиль ремня</label>
+        <label>Belt profile</label>
         <select value=${state.beltProfile}
           onChange=${(e) => upd({ beltProfile: e.target.value })}>
           ${Object.keys(BELT_PROFILES).map((p) => html`<option key=${p} value=${p}>${p}</option>`)}
         </select>
       </div>
 
-      <h3>Ступени</h3>
+      <h3>Stages</h3>
       ${stageBlock(1)}
       ${state.stages === 2 && stageBlock(2)}
 
-      <h3>Мотор</h3>
+      <h3>Motor</h3>
       <div class="field">
-        <label>Шагов на оборот</label>
+        <label>Steps per revolution</label>
         <input type="number" min="48" max="800" step="1" value=${state.stepsPerRev}
           onChange=${(e) => upd({ stepsPerRev: clampInt(e.target.value, 48, 800, state.stepsPerRev) })} />
       </div>
       <div class="field">
-        <label>Микрошаг</label>
+        <label>Microstep</label>
         <select value=${state.microstep}
           onChange=${(e) => upd({ microstep: parseInt(e.target.value, 10) })}>
           ${MICROSTEPS.map((m) => html`<option key=${m} value=${m}>${m}x</option>`)}
         </select>
       </div>
 
-      <h3>Прочее</h3>
+      <h3>Other</h3>
       <div class="field">
-        <label>Диаметр вала (визуально)</label>
+        <label>Shaft diameter (visual)</label>
         <input type="number" min="3" max="20" step="0.5" value=${state.shaftDiameter}
           onChange=${(e) => upd({ shaftDiameter: clampFloat(e.target.value, 3, 20, state.shaftDiameter) })} />
       </div>
 
       <div class="help">
-        Drag элемента — переместить (Shift = по одной оси).<br/>
-        Click — выделить, тогда видны X/Y-стрелки гизмо.<br/>
-        Drag красной/зелёной стрелки — движение строго по оси.<br/>
-        <span class="key-hint">←↑→↓</span> — нудж (Shift ×10).<br/>
-        Double-click — модалка X/Y + snap-to-std.<br/>
-        Pan: drag ПКМ, drag пустого холста, либо <span class="key-hint">Space</span>+drag.
+        Drag element — move (Shift = single axis).<br/>
+        Click — select; X/Y gizmo arrows appear.<br/>
+        Drag red/green arrow — move strictly along axis.<br/>
+        <span class="key-hint">←↑→↓</span> — nudge (Shift ×10).<br/>
+        Double-click — X/Y modal + snap-to-std.<br/>
+        Pan: RMB drag, empty-canvas drag, or <span class="key-hint">Space</span>+drag.
       </div>
     </div>
   `;
@@ -2147,7 +2171,10 @@ function Scene({ state, setState, calc, drag, setDrag, viewBox, setViewBox, zoom
       axisLock,
     };
     setDrag({ kind, beltIdx });
-    if (evt.target.setPointerCapture) evt.target.setPointerCapture(evt.pointerId);
+    // Older mobile Safari has bugs around setPointerCapture; wrap for safety.
+    if (evt.target.setPointerCapture) {
+      try { evt.target.setPointerCapture(evt.pointerId); } catch {}
+    }
   };
 
   const onPointerDown = (kind, beltIdx) => (evt) => {
@@ -2467,7 +2494,7 @@ function BeltBadgeLayer({ state, calc, setLengthEdit }) {
           font-family="var(--mono)" font-size="2.25" fill=${actualColor}>
           actual ${info.Lreal.toFixed(1)}
           ${locked
-            ? (lockMiss ? ` · недостижимо` : '')
+            ? (lockMiss ? ` · unreachable` : '')
             : (Math.abs(info.nearest.delta) < 0.05 ? '' : ` · Δ${info.nearest.delta >= 0 ? '+' : ''}${info.nearest.delta.toFixed(1)}`)}
         </text>
       </g>
@@ -2908,17 +2935,17 @@ function ResultsPanel({ state, calc }) {
 
     return html`
       <div class="stage-block stage${idx}" key=${idx}>
-        <div class="stage-title">${state.stages === 1 ? 'Ступень' : `Ступень ${idx}`}</div>
+        <div class="stage-title">${state.stages === 1 ? 'Stage' : `Stage ${idx}`}</div>
         <div class="result-row">
-          <span class="label">D₁ (ведущий)</span>
+          <span class="label">D₁ (driving)</span>
           <span class="value">${info.D1.toFixed(2)} mm</span>
         </div>
         <div class="result-row">
-          <span class="label">D₂ (ведомый)</span>
+          <span class="label">D₂ (driven)</span>
           <span class="value">${info.D2.toFixed(2)} mm</span>
         </div>
         <div class="result-row">
-          <span class="label">C (межосевое)</span>
+          <span class="label">C (center distance)</span>
           <span class="value">${info.C.toFixed(2)} mm</span>
         </div>
         <div class="result-row">
@@ -2926,39 +2953,39 @@ function ResultsPanel({ state, calc }) {
           <span class="value">${info.Lopen.toFixed(2)} mm</span>
         </div>
         <div class="result-row">
-          <span class="label">L (с натяжителем)</span>
+          <span class="label">L (with tensioner)</span>
           <span class="value">${info.Lreal.toFixed(2)} mm</span>
         </div>
         <div class="result-row">
-          <span class="label">Ближайший стандарт</span>
+          <span class="label">Nearest standard</span>
           <span class="value">${info.nearest.length} mm</span>
         </div>
         <div class="result-row">
-          <span class="label">Δ до стандарта</span>
+          <span class="label">Δ to standard</span>
           <span class="value ${dLClass}">${info.nearest.delta >= 0 ? '+' : ''}${info.nearest.delta.toFixed(2)} mm</span>
         </div>
         <div class="result-row">
-          <span class="label">Угол обхвата (мал.)</span>
+          <span class="label">Wrap angle (small)</span>
           <span class="value ${wrapClass}">${wrap.toFixed(1)}°</span>
         </div>
         <div class="result-row">
-          <span class="label">Зубьев в зацеплении</span>
+          <span class="label">Teeth in mesh</span>
           <span class="value ${meshClass}">${mesh} / ${info.smallTeeth}</span>
         </div>
         <div class="result-row">
-          <span class="label">Редукция ступени</span>
+          <span class="label">Stage ratio</span>
           <span class="value">1:${info.ratio.toFixed(3)}</span>
         </div>
         ${dL > 5 && inRange && html`
           <div class="help">
-            Подвинь оси или натяжитель, чтобы выйти на стандарт ${info.nearest.length}мм
-            (нужно ${info.nearest.delta > 0 ? 'сжать' : 'раздвинуть'} ~${dL.toFixed(1)}мм).
+            Move shafts or tensioner to land on the ${info.nearest.length}mm standard
+            (need to ${info.nearest.delta > 0 ? 'tighten' : 'spread'} by ~${dL.toFixed(1)}mm).
           </div>
         `}
         ${!inRange && html`
           <div class="help">
-            Длина вне диапазона стандартов для ${state.beltProfile}.
-            Возможно, нужен open-ended ремень с зажимами.
+            Length is outside the standard range for ${state.beltProfile}.
+            An open-ended belt with clamps may be needed.
           </div>
         `}
       </div>
@@ -2971,18 +2998,18 @@ function ResultsPanel({ state, calc }) {
 
   return html`
     <div class="panel right">
-      <h2>Расчёт</h2>
+      <h2>Results</h2>
 
       ${stageRows(1, calc.stage1)}
       ${state.stages === 2 && stageRows(2, calc.stage2)}
 
-      <h3>Итого</h3>
+      <h3>Total</h3>
       <div class="result-row">
-        <span class="label">Полная редукция</span>
+        <span class="label">Total reduction</span>
         <span class="value">1:${totalRatio.toFixed(3)}</span>
       </div>
       <div class="result-row">
-        <span class="label">Габариты (W × H)</span>
+        <span class="label">Bounding box (W × H)</span>
         <span class="value">${calc.bbox.w.toFixed(0)} × ${calc.bbox.h.toFixed(0)} mm</span>
       </div>
       <div class="result-row">
@@ -2990,29 +3017,29 @@ function ResultsPanel({ state, calc }) {
         <span class="value dim">(${calc.bbox.x.toFixed(0)}, ${calc.bbox.y.toFixed(0)})</span>
       </div>
 
-      <h3>Угловое разрешение</h3>
+      <h3>Angular resolution</h3>
       <div class="result-row">
-        <span class="label">Шаг (full step)</span>
+        <span class="label">Full step</span>
         <span class="value">${formatArcsec(fullStepArcsec)}</span>
       </div>
       <div class="result-row">
-        <span class="label">Микрошаг ${state.microstep}x</span>
+        <span class="label">Microstep ${state.microstep}x</span>
         <span class="value">${formatArcsec(arcsec)}</span>
       </div>
       <div class="result-row">
-        <span class="label">Микрошагов на ¼ оборота</span>
+        <span class="label">Microsteps per ¼ turn</span>
         <span class="value">${Math.round(state.stepsPerRev * state.microstep * totalRatio / 4)}</span>
       </div>
       <div class="result-row">
-        <span class="label">Микрошагов на 360°</span>
+        <span class="label">Microsteps per 360°</span>
         <span class="value">${Math.round(state.stepsPerRev * state.microstep * totalRatio)}</span>
       </div>
 
       <div class="help">
-        <b>Условные обозначения:</b><br/>
-        Угол обхвата: <span class="badge warn">&lt;120°</span> жёлтый, <span class="badge error">&lt;90°</span> красный<br/>
-        Зубья в зацеплении: <span class="badge warn">&lt;5</span> жёлтый, <span class="badge error">&lt;3</span> красный<br/>
-        Δ&gt;5мм — далеко от стандарта; потребует подвижки осей или натяжителя.
+        <b>Legend:</b><br/>
+        Wrap angle: <span class="badge warn">&lt;120°</span> yellow, <span class="badge error">&lt;90°</span> red<br/>
+        Teeth in mesh: <span class="badge warn">&lt;5</span> yellow, <span class="badge error">&lt;3</span> red<br/>
+        Δ&gt;5mm — far from standard; needs shaft or tensioner adjustment.
       </div>
     </div>
   `;
@@ -3223,7 +3250,7 @@ function EditModal({ state, setState, calc, editing, setEditing, showToast }) {
 
   const onSnap = () => {
     const result = snapToStdLength(state, kind, beltIdx);
-    if (!result) { showToast('Не удалось найти'); return; }
+    if (!result) { showToast('Not found'); return; }
     apply(result.pos.x, result.pos.y);
     showToast(`L → ${result.std}mm (Δ${result.err.toFixed(2)})`);
   };
@@ -3247,7 +3274,7 @@ function EditModal({ state, setState, calc, editing, setEditing, showToast }) {
       : state.output;
     const dx = shaftB.x - shaftA.x, dy = shaftB.y - shaftA.y;
     const len = Math.hypot(dx, dy);
-    if (len < 1) { showToast('Не удалось'); return; }
+    if (len < 1) { showToast('Failed'); return; }
     const ux = dx / len, uy = dy / len;
     const perpX = -uy, perpY = ux;
     const tens = stConf.tensioner;
@@ -3275,7 +3302,7 @@ function EditModal({ state, setState, calc, editing, setEditing, showToast }) {
       ...s,
       [`stage${beltIdx}`]: { ...s[`stage${beltIdx}`], tensioner: { x: newX, y: newY } },
     }));
-    showToast('Натяжение сброшено');
+    showToast('Tension reset');
   };
 
   // Click anywhere outside the modal → close (current values are already applied)
@@ -3290,6 +3317,7 @@ function EditModal({ state, setState, calc, editing, setEditing, showToast }) {
   const title = kind === 'motor' ? 'Motor shaft'
               : kind === 'output' ? 'Output shaft'
               : kind === 'intermediate' ? 'Intermediate shaft'
+              : state.stages === 1 ? 'Tensioner'
               : `Tensioner ${beltIdx}`;
 
   const vw = window.innerWidth, vh = window.innerHeight;
@@ -3324,19 +3352,19 @@ function EditModal({ state, setState, calc, editing, setEditing, showToast }) {
                           : (state.stages === 1 ? 1 : 2);
           const stageLocked = elemStage && Number.isFinite(state[`stage${elemStage}`]?.lockL);
           const tip = stageLocked
-            ? 'недоступно: длина ремня зафиксирована'
+            ? 'unavailable: belt length is locked'
             : '';
           return html`
             <button onClick=${onSnap}
               disabled=${stageLocked}
               title=${tip}
               style=${{ whiteSpace: 'nowrap', lineHeight: '1.3' }}>
-              подогнать к ближайшему<br/>стандартному ремню
+              fit to the nearest<br/>standard belt
             </button>
           `;
         })()}
         ${kind === 'tensioner' && html`
-          <button onClick=${onResetTension}>сбросить натяжение</button>
+          <button onClick=${onResetTension}>reset tension</button>
         `}
       </div>
     </div>
@@ -3436,8 +3464,8 @@ function DistanceModal({ state, setState, calc, distEdit, setDistEdit, showToast
   }, []);
 
   const title = state.stages === 1
-    ? 'Межосевое расстояние'
-    : `Межосевое C${stageIdx === 1 ? '₁' : '₂'}`;
+    ? 'Center distance'
+    : `Center distance C${stageIdx === 1 ? '₁' : '₂'}`;
 
   const vw = window.innerWidth, vh = window.innerHeight;
   const modalW = 220, modalH = 130;
@@ -3446,7 +3474,7 @@ function DistanceModal({ state, setState, calc, distEdit, setDistEdit, showToast
 
   const stageLocked = Number.isFinite(state[`stage${stageIdx}`]?.lockL);
   const lockTip = stageLocked
-    ? 'недоступно: длина ремня этой ступени зафиксирована (C определяется через L)'
+    ? "unavailable: this stage's belt length is locked (C is determined by L)"
     : '';
 
   return html`
@@ -3465,7 +3493,7 @@ function DistanceModal({ state, setState, calc, distEdit, setDistEdit, showToast
           disabled=${stageLocked}
           title=${lockTip}
           style=${{ whiteSpace: 'nowrap', lineHeight: '1.3' }}>
-          подогнать к ближайшему<br/>стандартному ремню
+          fit to the nearest<br/>standard belt
         </button>
       </div>
     </div>
@@ -3589,8 +3617,8 @@ function BeltLengthModal({ state, setState, calc, lengthEdit, setLengthEdit, sho
   useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
 
   const title = state.stages === 1
-    ? 'Длина ремня'
-    : `Длина ремня L${stageIdx === 1 ? '₁' : '₂'}`;
+    ? 'Belt length'
+    : `Belt length L${stageIdx === 1 ? '₁' : '₂'}`;
 
   const vw = window.innerWidth, vh = window.innerHeight;
   const modalW = 240, modalH = 130;
@@ -3615,17 +3643,17 @@ function BeltLengthModal({ state, setState, calc, lengthEdit, setLengthEdit, sho
           onKeyDown=${(e) => e.key === 'Enter' && close()} />
       </div>
       <label class="checkbox-row" style=${{ padding: '4px 0' }}
-        title="длина зафиксирована, ведомый шкив подстраивается под изменения teeth/tensioner">
+        title="belt length is locked, driven shaft auto-adjusts to teeth/tensioner changes">
         <input type="checkbox" checked=${isLocked} onChange=${onLockToggle} />
-        🔒 зафиксировать длину ремня
+        🔒 lock belt length
       </label>
       ${lockMismatch && html`
         <div class="hint" style=${{ color: 'var(--error)' }}>
-          L = ${L.toFixed(1)} mm — заданное значение недостижимо при текущей геометрии
+          L = ${L.toFixed(1)} mm — target unreachable at current geometry
         </div>
       `}
       <div class="actions">
-        <button onClick=${onSnap} style=${{ whiteSpace: 'nowrap', lineHeight: '1.3' }}>подогнать к ближайшему<br/>стандартному ремню</button>
+        <button onClick=${onSnap} style=${{ whiteSpace: 'nowrap', lineHeight: '1.3' }}>fit to the nearest<br/>standard belt</button>
       </div>
     </div>
   `;
@@ -3648,17 +3676,17 @@ function AboutModal({ onClose }) {
         <button class="close" onClick=${onClose} title="Esc">×</button>
         <h2>BELT DRIVE PLANNER</h2>
         <div class="tagline">
-          Интерактивный 2D-калькулятор ременной передачи для проектирования
-          моторизованных pan/tilt-голов. Профили GT2-2M, GT3-2M, HTD-3M, HTD-5M.
+          Interactive 2D belt-drive calculator for designing motorized
+          pan/tilt heads. Profiles GT2-2M, GT3-2M, HTD-3M, HTD-5M.
         </div>
 
-        <h3>Авторство</h3>
+        <h3>Credits</h3>
         <dl>
           <dt>Concept & direction</dt><dd>Stanislav Volkov</dd>
           <dt>Implementation</dt><dd>Claude Code · Anthropic</dd>
         </dl>
 
-        <h3>Технически</h3>
+        <h3>Technical</h3>
         <dl>
           <dt>Source</dt>
           <dd><a href="https://github.com/WolftheGrey/belt-calc" target="_blank" rel="noopener">github.com/WolftheGrey/belt-calc</a></dd>
@@ -3666,21 +3694,21 @@ function AboutModal({ onClose }) {
           <dt>Stack</dt><dd>React 18 + htm via esm.sh · SVG · Canvas · no build</dd>
         </dl>
 
-        <h3>Жесты</h3>
+        <h3>Gestures</h3>
         <ul>
-          <li><b>Click</b> элемент — выделить (появляется XY-гизмо)</li>
-          <li><b>Drag</b> — переместить (Shift = по одной оси)</li>
-          <li><b>Wheel</b> — zoom; <b>ПКМ</b> / <b>Space</b>+drag / drag пустого холста — pan</li>
-          <li><b>Double-click</b> элемента — модалка X/Y</li>
-          <li><b>Double-click</b> бейджа длины — редактировать L (+ lock)</li>
-          <li><b>Double-click</b> цифры C — редактировать межосевое</li>
-          <li><b>←↑→↓</b> — нудж на 1мм (Shift ×10)</li>
+          <li><b>Click</b> element — select (XY gizmo appears)</li>
+          <li><b>Drag</b> — move (Shift = single axis)</li>
+          <li><b>Wheel</b> — zoom; <b>RMB</b> / <b>Space</b>+drag / empty-canvas drag — pan</li>
+          <li><b>Double-click</b> element — X/Y modal</li>
+          <li><b>Double-click</b> length badge — edit L (+ lock)</li>
+          <li><b>Double-click</b> C number — edit center distance</li>
+          <li><b>←↑→↓</b> — nudge 1mm (Shift ×10)</li>
         </ul>
 
-        <h3>Натяжитель</h3>
+        <h3>Tensioner</h3>
         <ul>
-          <li><b>INT</b> — convex hull, как 3-й шкив (зубчатой стороной)</li>
-          <li><b>EXT</b> — back-side, гладкая спинка ремня снаружи петли</li>
+          <li><b>INT</b> — convex hull, like a 3rd pulley (toothed side)</li>
+          <li><b>EXT</b> — back-side, belt's smooth back, tensioner outside the loop</li>
         </ul>
       </div>
     </div>
@@ -3691,7 +3719,17 @@ function AboutModal({ onClose }) {
 // MOUNT
 // ============================================================
 
-createRoot(document.getElementById('root')).render(html`<${App} />`);
+try {
+  createRoot(document.getElementById('root')).render(html`<${App} />`);
+} catch (err) {
+  console.error('App init failed:', err);
+  document.getElementById('root').innerHTML =
+    '<div style="padding:24px;color:#ff6b6b;background:#0d2847;font-family:Menlo,monospace;line-height:1.5;min-height:100vh;">'
+    + '<h2 style="color:#ffd66e;font-weight:normal;letter-spacing:1.5px;">Failed to start</h2>'
+    + '<p>' + String(err && err.message ? err.message : err) + '</p>'
+    + '<p style="color:#888;font-size:12px;">Open the browser console for details, or try a current Chrome/Firefox/Safari.</p>'
+    + '</div>';
+}
 </script>
 </body>
 </html>

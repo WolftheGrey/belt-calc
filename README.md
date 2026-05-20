@@ -1,174 +1,196 @@
 # Belt Drive Planner
 
-Интерактивный 2D-калькулятор и визуальный планировщик ременной передачи —
-для проектирования компоновки моторизованных pan/tilt-голов и подобных приводов.
+Interactive 2D belt-drive calculator and visual planner — for designing layouts
+of motorized pan/tilt heads and similar small geared belt drives.
 
-Один HTML-файл, без сборки, без бэкенда, без зависимостей: открой `index.html`
-в браузере — и можно работать.
+A single HTML file. No build, no backend, no installation — just open
+`index.html` in a browser.
 
-## Что это
+**🌐 Live: https://wolfthegrey.github.io/belt-calc/**
 
-Браузерный инструмент, в котором ты «накидываешь» компоновку ремня
-(одно- или двухступенчатую), двигаешь оси и натяжитель мышкой, и сразу
-видишь:
+## What it does
 
-- длину ремня и насколько она близка к ближайшей стандартной;
-- угол обхвата меньшего шкива и число зубьев в зацеплении;
-- редукцию каждой ступени и общую редукцию;
-- угловое разрешение на выходе с учётом микрошага мотора;
-- габариты сборки.
+A browser tool where you "sketch" a belt layout (1- or 2-stage), drag shafts
+and the tensioner with the mouse, and immediately see:
 
-Стилистика — технический blueprint: тёмно-синий фон, моноширинный шрифт,
-миллиметровая сетка.
+- belt length and how close it is to the nearest standard
+- wrap angle on the smaller pulley and number of teeth in mesh
+- ratio of each stage and total reduction
+- output angular resolution accounting for motor microstepping
+- assembly bounding box
 
-## Запуск
+The style is engineering blueprint: dark-blue background, monospace font,
+millimeter grid.
+
+## Running
 
 ```bash
-# просто открой в браузере
+# just open in a browser
 open index.html
 ```
 
-Или, если нужен HTTP-режим:
+Or via HTTP:
 
 ```bash
 python3 -m http.server 8000
-# затем http://localhost:8000
+# then http://localhost:8000
 ```
 
-React и htm подгружаются как ES-модули с [esm.sh](https://esm.sh) при первой
-загрузке.
+React and htm are loaded as ES modules from [esm.sh](https://esm.sh) on first
+load.
 
-## Возможности
+## Features
 
-### Топология и профили
+### Topology and profiles
 
-- **1 или 2 ступени** редукции
-- Профили ремня: **GT2-2M, GT3-2M, HTD-3M, HTD-5M** — с полными встроенными
-  таблицами стандартных длин закрытых ремней
-- Pitch diameter считается как `D = T × pitch / π`; ремень рисуется на
-  pitch-окружности (визуально чуть внутри тонкой обводки шкива)
+- **1 or 2 reduction stages**
+- Belt profiles: **GT2-2M, GT3-2M, HTD-3M, HTD-5M** — with full built-in
+  tables of standard closed-loop belt lengths
+- Pitch diameter is `D = T × pitch / π`; the belt is rendered on the pitch
+  circle (visually just inside the thin pulley outline)
 
-### Управление сценой
+### Scene controls
 
-| Жест | Действие |
+| Gesture | Action |
 |---|---|
-| `Drag` элемента | переместить (Shift = по одной оси) |
-| `Click` | выделить — появляется Blender-style XY-гизмо |
-| `Drag` красной/зелёной стрелки | движение строго по оси |
-| `←↑→↓` | нудж на 1мм (Shift ×10) |
-| `Double-click` | модалка с X/Y + snap-to-std |
-| `Wheel` | плавный зум вокруг курсора |
-| `+` / `−` / `0` (или Cmd/Ctrl-варианты) | зум кнопками |
-| `Drag` ПКМ / пустого холста / `Space`+drag | pan |
+| `Drag` element | move (Shift = single axis) |
+| `Click` | select — Blender-style XY gizmo appears |
+| `Drag` red/green arrow | move strictly along that axis |
+| `←↑→↓` | nudge 1 mm (Shift ×10) |
+| `Double-click` | X/Y modal + snap-to-standard |
+| `Wheel` | smooth zoom around cursor |
+| `+` / `−` / `0` (or Cmd/Ctrl variants) | zoom buttons |
+| `Drag` RMB / empty canvas / `Space`+drag | pan |
 
-### Длина ремня
+### Belt length
 
-- **Бейджик возле каждого ремня**: крупно стандартная длина, помельче
-  актуальная + Δ от стандарта
-- **Double-click по бейджу** → модалка прямого редактирования L (с
-  численным подбором положения ведомого шкива)
-- **Double-click по цифре C** на dim-линии → модалка редактирования
-  межосевого расстояния
-- **🔒 Lock** в модалке длины: фиксирует длину ремня. Ведомый шкив
-  автоматически подстраивается под изменения числа зубьев или положения
-  натяжителя так, чтобы L оставалась = lockL. Когда заданная L
-  недостижима — красная подсветка инпута и бейджа.
+- **Badge near each belt** — standard length in large text, actual length +
+  delta below
+- **Double-click the badge** → modal for direct L editing; driven shaft
+  repositions numerically
+- **Double-click the C value** on the dimension line → modal for editing
+  the center distance
+- **🔒 Lock** in the length modal: fixes belt length. The driven shaft
+  auto-adjusts whenever teeth or tensioner change so L stays equal to
+  `lockL`. When a locked L can't be achieved — input and badge highlighted
+  red.
 
-### Натяжитель
+### Tensioner
 
-- Включается чекбоксом, спавнится **внутри** ремня (для INT) или
-  **снаружи** (для EXT)
-- **INT (auto)** — convex hull: ремень огибает натяжитель внешней
-  (зубчатой) стороной как 3-й шкив
-- **EXT (inverted)** — internal-tangent геометрия: натяжитель снаружи
-  петли, гладкая спинка ремня прижимает его внутрь
-- Смена режима в селекторе — натяжитель **прыгает через касательную**
-  ремня, сохраняя сторону
-- Натяжитель деформирует ремень во всём диапазоне drag (длина растёт
-  как геометрический периметр)
-- Кнопка **«сбросить натяжение»** возвращает натяжитель в neutral-позицию,
-  где ремень становится натуральным 2-pulley loop
+- Toggled with a checkbox, spawned **inside** the belt loop (for INT) or
+  **outside** (for EXT)
+- **INT (auto)** — convex hull: the belt wraps the tensioner with its
+  toothed side as a 3rd pulley
+- **EXT (inverted)** — internal-tangent geometry: tensioner outside the
+  loop, the belt's smooth back presses it inward
+- Switching mode in the dropdown — the tensioner jumps across the belt
+  tangent, preserving side
+- **EXT tensioner detaches** automatically when its circle is fully clear
+  of the natural 2-pulley belt boundary (no contact → nothing to press
+  against). **INT tensioner** remains part of the convex hull at any
+  non-collinear position.
+- **"Reset tension"** button moves the tensioner back to a neutral
+  position where the belt becomes the natural 2-pulley loop.
 
-### Экспорт и сохранение
+### Export and persistence
 
-- **Copy URL** — компактная base64-сериализация всего state в URL
-  (для шаринга конфигурации)
-- **Copy JSON** — то же, но в виде JSON
-- **Export SVG** — векторная схема для документации/CAD
-- **Export PNG** — растровая схема + табличка справа с координатами
-  всех элементов, диаметрами шкивов, длинами ремней, редукцией и
-  угловым разрешением
-- **Автосохранение** — любое изменение state кладётся в URL и
-  localStorage. Открыл URL — конфигурация восстановится; чистый URL —
-  последняя локальная сессия.
+- **Copy URL** — compact base64 serialization of the full state in the URL
+  (for sharing configurations)
+- **Copy JSON** — the same as JSON
+- **Export SVG** — vector schematic for documentation/CAD
+- **Export PNG** — raster schematic + a side table with element
+  coordinates, pulley diameters, belt lengths, ratio, and angular
+  resolution. The viewport auto-fits the content with 25 mm padding while
+  preserving canvas aspect ratio.
+- **Auto-save** — every state change is mirrored to the URL and
+  localStorage. Opening a saved URL restores the configuration; a clean
+  URL — the last local session.
 
-## Архитектура
+## Architecture
 
-Один HTML-файл `index.html`, ~3300 строк. Внутри `<script type="module">`:
+A single `index.html`, ~3300 lines. Inside `<script type="module">`:
 
-| Слой | Содержимое |
+| Layer | Contents |
 |---|---|
-| **Constants** | профили ремней, дефолтный state, размеры сцены, ZOOM_STEP, SNAP_STEP |
-| **Geometry helpers** | pitchDiameter, openBeltLength, wrapAngleSmall, nearestStandard, dist |
-| **Tangent calculations** | externalTangentAngles / internalTangentAngles (с clamping для numerical stability) |
-| **Belt path builders** | `buildBelt` — общий convex hull для N кругов; `buildBeltInverted` — специальный случай EXT-натяжителя через internal tangents |
+| **Constants** | belt profiles, default state, scene size, ZOOM_STEP, SNAP_STEP |
+| **Geometry helpers** | `pitchDiameter`, `openBeltLength`, `wrapAngleSmall`, `nearestStandard`, `dist` |
+| **Tangent calculations** | `externalTangentAngles` / `internalTangentAngles` (with clamping for numerical stability) |
+| **Belt path builders** | `buildBelt` — general convex hull for N circles; `buildBeltInverted` — EXT tensioner via internal tangents |
 | **PNG export** | `exportPng` + `drawExportTable` |
-| **Tensioner positioning** | `tensionerPosForSide` — спавн и прыжок натяжителя |
-| **Lock enforcer** | `applyLockForStage` + `enforceLocks` — bisection по C для поддержания заданной длины |
+| **Tensioner positioning** | `tensionerPosForSide` — spawn and mode-switch jump |
+| **Lock enforcer** | `applyLockForStage` + `enforceLocks` — bisection over C to maintain a fixed belt length |
 | **State** | URL ⇄ localStorage, `mergeDefaults` |
-| **React components** | через [htm](https://github.com/developit/htm) (template-literal JSX-like, без Babel) |
+| **React components** | via [htm](https://github.com/developit/htm) (template-literal JSX-like, no Babel) |
 
-### React-дерево
+### React tree
 
 ```
 App
 ├── Toolbar (Reset / Copy URL / Copy JSON / Export SVG/PNG / Snap)
 └── Layout
-    ├── ParameterPanel       — левая колонка (топология, ступени, мотор)
-    ├── Scene                — центральный SVG-холст
+    ├── ParameterPanel       — left column (topology, stages, motor)
+    ├── Scene                — central SVG canvas
     │   ├── Rulers
-    │   ├── BeltLayer        — линии и арки ремней
-    │   ├── Dimensions       — пунктирные C-линии с лейблами
-    │   ├── BeltBadgeLayer   — крупные бейджи длины ремня
-    │   ├── PulleyLayer      — шкивы (Motor / Intermediate / Output)
-    │   ├── TensionerLayer   — натяжители
-    │   ├── ArrowWidget      — XY-гизмо для выбранного элемента
-    │   └── ZoomCtl          — +/⊡/− кнопки
-    ├── ResultsPanel         — правая колонка (расчёты)
-    ├── EditModal            — координаты элемента
-    ├── DistanceModal        — межосевое C
-    └── BeltLengthModal      — длина ремня L + lock
+    │   ├── BeltLayer        — belt straights and arcs
+    │   ├── Dimensions       — dashed C-lines with labels
+    │   ├── BeltBadgeLayer   — large belt-length badges
+    │   ├── PulleyLayer      — Motor / Intermediate / Output shafts
+    │   ├── TensionerLayer   — tensioners
+    │   ├── ArrowWidget      — XY gizmo for the selected element
+    │   └── ZoomCtl          — +/⊡/− buttons
+    ├── ResultsPanel         — right column (calculations)
+    ├── EditModal            — element coordinates
+    ├── DistanceModal        — center distance C
+    └── BeltLengthModal      — belt length L + lock
 ```
 
-### Ключевые инварианты
+### Key invariants
 
-- **Pulleys at outer-diameter, belt at pitch-diameter** — ремень видно
-  как отдельную кривую чуть внутри обводки шкива (так физически
-  правильнее, и визуально не сливается).
-- **SVG Y-down везде**. `atan2/cos/sin` следуют той же системе:
-  «CCW math» = «CW visual», sweep flag SVG-арков выставляется
-  соответственно.
-- **Belt builders никогда не возвращают null** для полностью
-  нерендерящегося ремня — есть degenerate fallback (прямая линия
-  через центры), чтобы при кратковременных вырожденных конфигах не
-  пропадала вся отрисовка.
-- **Numerical stability**: аргументы `Math.acos` клампятся в `[-1, 1]`,
-  `pickDir` использует cross-product как tiebreaker для симметричного
-  2-кружкового случая.
+- **Pulleys at outer diameter, belt at pitch diameter** — the belt renders
+  as a distinct curve just inside the pulley outline (physically correct,
+  since teeth engage at pitch, and it doesn't merge visually with the
+  pulley ring).
+- **SVG Y-down throughout**. `atan2/cos/sin` follow the same convention;
+  "math CCW" = "visual CW"; the SVG arc sweep flag is set per arc
+  direction.
+- **Belt builders never return null** for an otherwise-renderable input —
+  there's a degenerate fallback (line through circle centers) so transient
+  bad configurations don't make the whole belt vanish.
+- **Numerical stability**: arguments to `Math.acos` are clamped to
+  `[-1, 1]`; `pickDir` uses a cross-product tiebreaker for the symmetric
+  2-circle case.
 
-## Стек
+## Stack
 
-- **React 18** + **htm 3** через [esm.sh](https://esm.sh) — без сборки
-- SVG для всей графики, Canvas только для PNG-экспорта
-- `localStorage` + `URLSearchParams` для персистентности
+- **React 18** + **htm 3** via [esm.sh](https://esm.sh) — no build step
+- SVG for all graphics, Canvas only for PNG export
+- `localStorage` + `URLSearchParams` for persistence
 
-## Контекст
+## Browser support
 
-Сделано для проектирования pan/tilt-головы, поэтому набор фичей
-заточен под маленькие шаговые приводы и зубчатые ремни мелкого шага
-(GT2/GT3/HTD-3M/HTD-5M). Для V-belt / round belt / chain не
-подходит — нужны другие формулы.
+Targets modern browsers with ES module support (released around 2017+):
 
-## Лицензия
+- Chrome / Edge 79+
+- Firefox 60+
+- Safari 13+ (iOS Safari 13+)
+- Android Chrome (current)
 
-MIT — см. [LICENSE](LICENSE).
+On narrow viewports (< 880 px) a banner appears pointing to Chrome's
+"Desktop site" mode, which gives a workable ~980 px viewport. Tablets in
+landscape work natively.
+
+## Context
+
+Built for designing a pan/tilt camera head, so the feature set targets
+small stepper drives and fine-pitch toothed belts (GT2 / GT3 / HTD-3M /
+HTD-5M). For V-belts, round belts or chains — different formulas would
+be needed.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+## Credits
+
+- Concept & direction: Stanislav Volkov
+- Implementation: Claude Code · Anthropic
